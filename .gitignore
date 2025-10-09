@@ -1,9 +1,11 @@
 # Ignore everything by default
 *
 
-# --- Keep only specific folders/files ---
+# --- Keep only these ---
 !code/
+!code/**
 !data/
+!data/**
 !SPICEY_HPAP_CTRL_PAPER.Rmd
 !.gitignore
 
