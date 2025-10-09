@@ -1,64 +1,75 @@
-# Ignore everything by default
+# --- Ignore everything by default ---
 *
 
-# --- Keep only these ---
+# --- Keep main folders and key files ---
 !code/
 !code/**
+
 !data/
-!data/**
+!data/**/*.rds
+!data/**/*.csv
+
 !SPICEY_HPAP_CTRL_PAPER.Rmd
 !.gitignore
 
-# --- RStudio / system files ---
+# ============================================================
+# 🧩 Common R & system ignores
+# ============================================================
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
 .Rapp.history
 .DS_Store
-
-# --- Temporary or generated files ---
-analysis/figure/
-analysis/*png
-analysis/*html
-analysis/*_cache
-analysis/site_libs
-*.log
+*.Rproj
 *.out
 *.err
-*.tmp
-
-# --- Large or raw data formats to ignore globally ---
-*.bam
-*.bai
-*.gz
-*.bed
-*.csv
-*.tsv
-*.Peak
-*.xls
-*.xlsx
-*.txt
-*.bw
-*.fastq
-*.fq
+*.log
 *.zip
-*.rds
-*.rda
-*.RData
-*.RDS
-*.bedgraph
-*.bb
+*.gz
+*.tar
+*.tmp
+*.bak
+*.swp
 
-# --- Project subfolders to ignore ---
-CC/
-CYT/
-HPAP_CTRL/
-test_T1D/
+# ============================================================
+# 🧩 Ignore large analysis or results directories
+# ============================================================
+analysis/
+output/
 misc/
 renv/
-output/
+test_T1D/
+HPAP_CTRL/
+CYT/
+CC/
 hallmark_dara/
-DESCRIPTION
-NAMESPACE
-*.Rproj
+data_for_package.R
+
+# ============================================================
+# 🧩 Ignore large data formats (except allowed in data/)
+# ============================================================
+*.bam
+*.bai
+*.bed
+*.bw
+*.bigWig
+*.fastq
+*.fq
+*.tsv
+*.txt
+*.xlsx
+*.xls
+*.rda
+*.RDS
+*.RData
+*.bb
+*.bedgraph
+*.Peak
+*.peak
+
+# ============================================================
+# ✅ Keep these data types ONLY inside data/
+# ============================================================
+!data/**/*.rds
+!data/**/*.csv
