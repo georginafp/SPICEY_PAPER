@@ -13,7 +13,7 @@
 !.gitignore
 
 # ============================================================
-# 🧩 Common R & system ignores
+# Common R & system ignores
 # ============================================================
 .Rproj.user
 .Rhistory
@@ -33,7 +33,7 @@
 *.swp
 
 # ============================================================
-# 🧩 Ignore large analysis or results directories
+# Ignore large analysis or results directories
 # ============================================================
 analysis/
 output/
@@ -47,7 +47,7 @@ hallmark_dara/
 data_for_package.R
 
 # ============================================================
-# 🧩 Ignore large data formats (except allowed in data/)
+# Ignore large data formats (except allowed in data/)
 # ============================================================
 *.bam
 *.bai
@@ -69,7 +69,7 @@ data_for_package.R
 *.peak
 
 # ============================================================
-# ✅ Keep these data types ONLY inside data/
+# Keep these data types ONLY inside data/
 # ============================================================
 !data/**/*.rds
 !data/**/*.csv
