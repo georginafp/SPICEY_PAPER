@@ -73,7 +73,7 @@ SPICEY_ANNOTATED_COACC <- readRDS("/homes/users/gfuentes/scratch/projects/spicey
 
 
 # 3. Import some custom functions for visualization of the UMAP plots ..........
-source("code/custom_functions.R")
+source("/homes/users/gfuentes/scratch/projects/spicey_paper/HPAP_CTRL/code/custom_functions.R")
 
 
 # 4. Import hallmarks ----------------------------------------------------------
@@ -616,3 +616,18 @@ plot_colored <- plot +
 plot_colored
 
 ```
+
+```{r top-rank-spicey, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+top_rank <- SPICEY_ANNOTATED_COACC$linked |>
+  dplyr::filter(!is.na(gene_id), !is.na(RETSI), !is.na(GETSI)) |>
+  dplyr::mutate(
+    combined_score = (RETSI + GETSI) / 2) %>% 
+  group_by(cell_type) %>%
+  mutate(
+    specificity_rank = rank(-combined_score, ties.method = "average"),
+    specificity_percentile = 1 - (specificity_rank - 1) / (n() - 1)
+  ) %>%
+  filter(cell_type == "Stellate", specificity_percentile >= 0.95)
+
+```
+
