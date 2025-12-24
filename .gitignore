@@ -5,6 +5,8 @@
 !code/
 !code/**
 
+!PBMC/
+
 !data/
 !data/**/*.rds
 !data/**/*.csv
