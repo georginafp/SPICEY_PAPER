@@ -1,0 +1,759 @@
+---
+title: "SPICEY: An R package for assessing tissue specificity from single cell multi-omics data"
+author: "Georgina Fuentes"
+date: "2025-10-09"
+output: html_document
+---
+
+This R Markdown document accompanies the SPICEY manuscript (doi: XXX) and contains all the code necessary to reproduce the analyses and figures presented in the paper. The motivation behind this is that single-cell technologies allow detailed mapping of cell type-specific regulatory and transcriptomic landscapes, yet a systematic way to quantify tissue specificity is lacking. SPICEY (SPecificity Index for Coding and Epigenetic activitY) is an R package that measures cell-type specificity from single cell multi-omic data. Therefore, we developed SPICEY, an R package that quantifies cell-type specificity from single-cell accessibility and gene expression data. It computes two indices -RETSI for regulatory elements and GETSI for genes- that combine differential and entropy-based metrics to capture tissue specificity. By linking distal chromatin regions to target genes through proximity or co-accessibility, SPICEY integrates regulatory and transcriptional specificity. 
+
+Briefly, applied to human pancreatic islet data, SPICEY identified cell-type-specific enhancer-gene pairs and regulatory features enriched in endocrine cells -including β cells- providing a framework to dissect cell-type-specific regulatory mechanisms in complex diseases. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.algn = "center",
+                      warning = FALSE,
+                      message = FALSE,
+                      fig.width=5, 
+                      fig.height=5)
+
+# 0. Packages ------------------------------------------------------------------
+library(GenomicRanges)
+library(dplyr)
+library(ggplot2)
+library(Seurat)
+library(tidyr)
+library(regioneR)
+library(purrr)
+library(Signac)
+library(purrr)
+library(ggside)
+library(viridis)
+library(tibble)
+library(ggsignif)
+library(RColorBrewer)
+library(ggplotify)
+library(pheatmap)
+library(patchwork)
+library(scales)
+library(data.table)
+library(here)
+library(S4Vectors)
+library(ggpubr)
+library(ggridges)
+library(scales) 
+library(tidyverse)
+library(org.Hs.eg.db)
+library(GenomicFeatures)
+library(ggh4x)
+library(ggsci)
+library(SPICEY)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(ggtext)
+library(cowplot)
+
+
+# 1. Configuration for plots ---------------------------------------------------
+BASE_SIZE <- 8
+LABEL_SIZE <- 9
+
+THEME <- theme_bw(base_size = BASE_SIZE) +
+  theme(axis.text = element_text(size = 8),
+        axis.title = element_text(size = 9),
+        strip.text = element_text(size = 8),
+        plot.title = element_text(size = 9, hjust = 0.5),
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 9))
+
+PLOT_CONFIG <- list(x_text_angle = 35,
+                    box_color = "gray30",
+                    box_linewidth = 0.5,
+                    box_alpha = 0.6,
+                    box_outlier_size = 0.3)
+
+CELL_COLORS <- c(
+  # Monocytes
+  "CD14 Mono"       = "#7E9F66",
+  "CD16 Mono"       = "#6F8F5C",
+  "Intermediate B"  = "#5F7F4F",
+  # B cells
+  "Naive B"         = "#87abbf",
+  "Memory B"        = "#6F94AD",
+  "Plasma"          = "#557C96",
+  # CD4 T cells
+  "CD4 Naive"       = "#D37972",
+  "CD4 TCM"         = "#C46B65",
+  "CD4 TEM"         = "#B85E58",
+  "Treg"            = "#E2A09B",
+  # CD8 T cells
+  "CD8 Naive"       = "#fcbbb6",
+  "CD8 TEM_1"       = "#F2A6A0",
+  "CD8 TEM_2"       = "#E58E88",
+  # Innate-like T cells
+  "MAIT"            = "#C6E6FF",
+  "gdT"             = "#A9CFEF",
+  # NK
+  "NK"              = "#B4609B",
+  # Dendritic cells
+  "cDC"             = "#008E80",
+  "pDC"             = "#5FB3A2",
+  # Stem / progenitor
+  "HSPC"            = "#c7c7c7"
+)
+
+
+TYPE_COLORS <- c("Tissue-specific" = "#c08f5f",
+                 "Ubiquitous" = "#007561")
+
+# 2. Import data ---------------------------------------------------------------
+SPICEY_ANNOTATED_COACC <- readRDS("/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/PBMC_SPICEY_COACC.rds")
+UBIQUITOUS <- read.csv(here::here("HPAP_CTRL/data/UBIQUITOUS_GENESET.csv"))$HSIAO_HOUSEKEEPING_GENES
+
+# hkg <- fgsea::gmtPathways("/homes/users/gfuentes/scratch/projects/spicey_paper/hallmark_dara/HOUNKPE_HOUSEKEEPING_GENES.v2024.1.Hs.gmt")
+# UBIQUITOUS <- hkg$HOUNKPE_HOUSEKEEPING_GENES
+
+# TISSUE_SPECIFIC <- read.csv(here::here("HPAP_CTRL/data/TISSUE_SPZ_GENESET.csv")) %>%
+#   dplyr::filter(CellType %in% unique(SPICEY_ANNOTATED_COACC$linked$cell_type))
+marker_map <- list(
+
+  "CD14 Mono" = c(
+    # original
+    "S100A9","S100A8","LYZ","CTSS","CTSD","FCN1",
+    "VCAN","CD14","S100A12","MS4A6A","IL1B","AIF1",
+    # added
+    "LGALS3","CTSB","CTSL","HLA-DRA","HLA-DRB1","CCR2","CD68"
+  ),
+
+  "CD16 Mono" = c(
+    # original
+    "FCGR3A","LST1","MS4A7","AIF1","CDKN1C",
+    "FCER1G","COTL1","NAP1L1","YBX1",
+    # added
+    "CX3CR1","IFITM3","SERPINA1","LGALS3"
+  ),
+
+  "CD4 Naive" = c(
+    # original
+    "CD4","CCR7","IL7R","TCF7","LEF1",
+    "LDHB","FHIT","MAL","TRAC",
+    # added
+    "LTB","NOSIP","SATB1","CCR6"
+  ),
+
+  "CD4 TCM" = c(
+    # original
+    "CD4","IL7R","LTB","FYB1","ITGB1",
+    "MAL","AQP3","IL32","TRAC",
+    # added
+    "CCR7","CD27","ICOS"
+  ),
+
+  "CD4 TEM" = c(
+    # original
+    "CD4","GZMK","CCL5","IL32","GZMA",
+    "ITGB1","KLRB1","TRAC",
+    # added
+    "IFNG","CXCR3","CD69"
+  ),
+
+  "CD8 Naive" = c(
+    # original
+    "CD8A","CD8B","CCR7","LEF1","TCF7",
+    "LDHB","S100B",
+    # added
+    "MAL","LTB","NOSIP"
+  ),
+
+  "CD8 TEM_1" = c(
+    # original
+    "CD8A","CD8B","CCL5","GZMK",
+    "NKG7","CST7","IL32",
+    # added
+    "IFNG","KLRB1"
+  ),
+
+  "CD8 TEM_2" = c(
+    # original
+    "CD8A","CD8B","GZMH","GNLY",
+    "KLRD1","PRF1","FGFBP2",
+    # added
+    "XCL1","XCL2","CTSW"
+  ),
+
+  "cDC" = c(
+    # original
+    "FCER1A","CD1C","CLEC10A","CD74",
+    "HLA-DPA1","HLA-DPB1","HLA-DQA1",
+    "HLA-DQB1","HLA-DRA","CTSS","PLD4",
+    # added
+    "IRF4","LILRA4","CCR7"
+  ),
+
+  "gdT" = c(
+    # original
+    "TRDC","TRGC1","TRGC2","TRDV1","TRDV2",
+    "KLRD1","KLRC1","NKG7","GNLY","IKZF2",
+    # added
+    "GZMB","PRF1","CTSW"
+  ),
+
+  "Intermediate B" = c(
+    # original
+    "MS4A1","IGHM","IGHD","CD79A","CD79B",
+    "BANK1","TNFRSF13B","TNFRSF13C",
+    # added
+    "CD37","CD22","HLA-DRA"
+  ),
+
+  "Memory B" = c(
+    # original
+    "MS4A1","CD79A","BANK1","TNFRSF13C",
+    "COCH","RALGPS2","SSPN","IGHA1","IGHA2",
+    # added
+    "CD27","AIM2","CD74"
+  ),
+
+  "Naive B" = c(
+    # original
+    "IGHM","IGHD","TCL1A","CD79A","CD79B",
+    "IL4R","CXCR4","MS4A1",
+    # added
+    "CD22","CD37","HLA-DRA"
+  ),
+
+  "NK" = c(
+    # original
+    "NKG7","GNLY","PRF1","GZMB","GZMH",
+    "KLRD1","KLRF1","FCER1G","TYROBP","FGFBP2",
+    # added
+    "XCL1","XCL2","CTSW","TRBC1"
+  ),
+
+  "pDC" = c(
+    # original
+    "LILRA4","IL3RA","TCF4","IRF7",
+    "IRF8","PLD4","SERPINF1","CLEC4C",
+    # added
+    "GZMB","TPST1"
+  ),
+
+  "MAIT" = c(
+    # original
+    "KLRB1","NKG7","GZMK","IL7R",
+    "CXCR6","NCR3","CTSW",
+    # added
+    "TRAV1-2","SLC4A10","CCR6"
+  ),
+
+  "Treg" = c(
+    # original
+    "FOXP3","IL2RA","CTLA4","TIGIT",
+    "IKZF2","RTKN2","TRAC","CD4",
+    # added
+    "TNFRSF18","IL10","CCR8","ENTPD1"
+  )
+)
+
+
+
+TISSUE_SPECIFIC <- do.call(
+  rbind,
+  lapply(names(marker_map), function(ct) {
+    data.frame(
+      gene = marker_map[[ct]],
+      cell_type = ct,
+      stringsAsFactors = FALSE
+    )
+  })
+)
+
+
+# TISSUE_SPECIFIC <- do.call(
+#   rbind,
+#   lapply(names(marker_map), function(ct) {
+#     data.frame(
+#       cell_type = ct,
+#       gene = marker_map[[ct]],
+#       stringsAsFactors = FALSE
+#     )
+#   })
+# )
+
+```
+
+# Distribution of SPICEY measures
+
+```{r spicey-distribution, message=FALSE, warning=FALSE, fig.width=6, fig.height=6}
+
+DISTRIBUTION_PLOT <- local({
+  spicey_long <- SPICEY_ANNOTATED_COACC$linked %>%
+    as.data.frame() %>%
+    pivot_longer(
+      cols = c(RETSI, GETSI),
+      names_to = "metric",
+      values_to = "value"
+    ) %>%
+    dplyr::filter(!is.na(value))
+
+  cell_order <- spicey_long %>%
+    group_by(cell_type) %>%
+    summarise(mean_value = mean(value, na.rm = TRUE), .groups = "drop") %>%
+    arrange(desc(mean_value)) %>%
+    pull(cell_type)
+
+  spicey_long <- spicey_long %>%
+    mutate(cell_type = factor(cell_type, levels = cell_order))
+
+  markers <- bind_rows(
+    SPICEY_ANNOTATED_COACC$linked %>%
+      as.data.frame() %>%
+      inner_join(TISSUE_SPECIFIC,
+                 by = c("gene_id" = "gene", "cell_type")) %>%
+      mutate(type = "Tissue-specific"),
+    SPICEY_ANNOTATED_COACC$linked %>%
+      as.data.frame() %>%
+      dplyr::filter(gene_id %in% UBIQUITOUS) %>%
+      mutate(type = "Ubiquitous")
+  ) %>%
+    mutate(
+      type = factor(type, levels = c("Ubiquitous", "Tissue-specific")),
+      RETSI = as.numeric(RETSI),
+      GETSI = as.numeric(GETSI)
+    ) %>%
+    dplyr::filter(!is.na(RETSI),
+                  !is.na(GETSI)) %>%
+    group_by(cell_type, type) %>%
+    summarise(
+      RETSI = mean(RETSI, na.rm = TRUE),
+      GETSI = mean(GETSI, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  ggplot(spicey_long, aes(x = cell_type, y = value)) +
+    geom_jitter(color = "grey80", width = 0.15, size = 0.4, alpha = 0.05) +
+    geom_boxplot(
+      aes(fill = cell_type),
+      position = position_dodge(width = 0.7),
+      outlier.shape = NA,
+      linewidth = PLOT_CONFIG$box_linewidth,
+      color = PLOT_CONFIG$box_color,
+      alpha = PLOT_CONFIG$box_alpha
+    ) +
+    geom_point(
+      data = markers %>%
+        pivot_longer(
+          cols = c(RETSI, GETSI),
+          names_to = "metric",
+          values_to = "value"
+        ),
+      aes(x = cell_type, y = value, color = type),
+      size = 1.8
+    ) +
+    scale_color_manual(values = TYPE_COLORS) +
+    facet_grid(~metric) +
+    scale_fill_manual(values = CELL_COLORS) +
+    labs(x = "Cell type", y = "SPICEY measure") +
+    coord_flip() +
+    THEME +
+    theme(
+      axis.text.x = element_text(angle = PLOT_CONFIG$x_text_angle, hjust = 1, vjust = 1)
+    )
+})
+```
+
+# SPICEY measures at cell type specific and ubiquitous sites
+
+```{r spicey-hallmarks, message=FALSE, warning=FALSE}
+
+SPICEY_GETSI <- {
+  df <- bind_rows(
+    SPICEY_ANNOTATED_COACC$linked %>%
+      data.frame() %>%
+      inner_join(
+        TISSUE_SPECIFIC,
+        by = c("gene_id" = "gene", "cell_type")
+      ) %>%
+      mutate(type = "Tissue-specific"),
+
+    SPICEY_ANNOTATED_COACC$linked %>%
+      data.frame() %>%
+      dplyr::filter(gene_id %in% UBIQUITOUS) %>%
+      mutate(type = "Ubiquitous")
+  ) %>%
+    dplyr::filter(!is.na(GETSI), !is.na(type)) %>%
+    mutate(
+      GETSI = as.numeric(GETSI),
+      type = factor(type, levels = c("Ubiquitous", "Tissue-specific"))
+    )
+
+  ggplot(df, aes(x = type, y = GETSI, fill = type)) +
+    geom_boxplot(
+      alpha = 0.6,
+      linewidth = PLOT_CONFIG$box_linewidth,
+      width = 0.8,
+      outlier.size = PLOT_CONFIG$box_outlier_size,
+      color = PLOT_CONFIG$box_color
+    ) +
+    scale_fill_manual(values = TYPE_COLORS) +
+    labs(x = "", y = "GETSI") +
+    ggtitle("GETSI") +
+    THEME +
+    theme(axis.text.x = element_text(
+      angle = PLOT_CONFIG$x_text_angle,
+      hjust = 1,
+      vjust = 1
+    ))
+}
+
+SPICEY_RETSI <- {
+  df <- bind_rows(
+    SPICEY_ANNOTATED_COACC$linked %>%
+      data.frame() %>%
+      inner_join(
+        TISSUE_SPECIFIC,
+        by = c("gene_id" = "gene", "cell_type")
+      ) %>%
+      mutate(type = "Tissue-specific"),
+
+    SPICEY_ANNOTATED_COACC$linked %>%
+      data.frame() %>%
+      dplyr::filter(gene_id %in% UBIQUITOUS) %>%
+      mutate(type = "Ubiquitous")
+  ) %>%
+    dplyr::filter(!is.na(RETSI), !is.na(type), !is.na(annotation)) %>%
+    dplyr::filter(
+      (annotation == "Promoter" & (
+        (type == "Tissue-specific" & TSS_gene %in% TISSUE_SPECIFIC$gene) |
+        (type == "Ubiquitous" & TSS_gene %in% UBIQUITOUS)
+      )) |
+        annotation == "Distal"
+    ) %>%
+    mutate(
+      RETSI = as.numeric(RETSI),
+      type = factor(type, levels = c("Ubiquitous", "Tissue-specific")),
+      annotation = factor(annotation, levels = c("Promoter", "Distal"))
+    )
+
+  ggplot(df, aes(x = type, y = RETSI, fill = type)) +
+    geom_boxplot(
+      alpha = 0.6,
+      linewidth = PLOT_CONFIG$box_linewidth,
+      width = 1,
+      outlier.size = PLOT_CONFIG$box_outlier_size,
+      color = PLOT_CONFIG$box_color
+    ) +
+    scale_fill_manual(values = TYPE_COLORS) +
+    labs(x = "", y = "RETSI") +
+    facet_grid(~annotation) +
+    THEME +
+    theme(axis.text.x = element_text(
+      angle = PLOT_CONFIG$x_text_angle,
+      hjust = 1,
+      vjust = 1
+    ))
+}
+
+```
+
+# Entropy metrics at tissue specific and ubiquitous sites
+
+```{r spicey-hallmarks-entropy, message=FALSE, warning=FALSE}
+
+SPICEY_GETSI_ENTROPY <- {
+  df <- SPICEY_ANNOTATED_COACC$linked %>%
+    data.frame() %>%
+    group_by(TSS_gene) %>%
+    filter(any(GETSI > 0, na.rm = TRUE)) %>%   # <-- remove genes with GETSI = 0 everywhere
+    ungroup() %>%
+    mutate(
+      type = ifelse(
+        TSS_gene %in% TISSUE_SPECIFIC$gene,
+        "Tissue-specific",
+        "Ubiquitous"
+      ),
+      GETSI_entropy = as.numeric(GETSI_entropy),
+      type = factor(type, levels = c("Ubiquitous", "Tissue-specific"))
+    ) %>%
+    dplyr::filter(!is.na(GETSI_entropy), 
+                  in_TSS == TRUE) #%>% 
+    #dplyr::distinct(TSS_gene, .keep_all = TRUE)
+
+  ggplot(df, aes(x = type, y = GETSI_entropy, fill = type)) +
+    geom_violin(alpha = 0.5) +
+    geom_boxplot(
+      alpha = PLOT_CONFIG$box_alpha,
+      linewidth = PLOT_CONFIG$box_linewidth,
+      width = 0.8,
+      outlier.size = PLOT_CONFIG$box_outlier_size,
+      color = PLOT_CONFIG$box_color
+    ) +
+    scale_fill_manual(values = TYPE_COLORS) +
+    labs(x = "", y = expression(H[GETSI])) +
+    geom_signif(
+      comparisons = list(c("Tissue-specific", "Ubiquitous")),
+      y_position = max(df$GETSI_entropy, na.rm = TRUE) * 1.05,
+      map_signif_level = TRUE,
+      textsize = 3,
+      tip_length = 0.03
+    ) +
+    ylim(c(0, 1.1)) +
+    THEME +
+    theme(axis.text.x = element_text(
+      angle = PLOT_CONFIG$x_text_angle,
+      hjust = 1,
+      vjust = 1
+    ))
+}
+
+
+
+SPICEY_RETSI_ENTROPY <- {
+  df <- SPICEY_ANNOTATED_COACC$linked %>%
+    data.frame() %>%
+    group_by(region_id) %>%
+    filter(any(RETSI > 0, na.rm = TRUE)) %>%   # <-- remove genes with GETSI = 0 everywhere
+    ungroup() %>%
+    mutate(
+      type = ifelse(
+        gene_id %in% TISSUE_SPECIFIC$gene,
+        "Tissue-specific",
+        "Ubiquitous"
+      ),
+      RETSI_entropy = as.numeric(RETSI_entropy),
+      annotation = factor(annotation, levels = c("Promoter", "Distal")),
+      type = factor(type, levels = c("Ubiquitous", "Tissue-specific"))
+    ) %>%
+    dplyr::filter(!is.na(RETSI_entropy)) #%>%
+    #distinct(region_id, .keep_all = TRUE)
+
+  ggplot(df, aes(x = type, y = RETSI_entropy, fill = type)) +
+    geom_violin(alpha = 0.5) +
+    geom_boxplot(
+      alpha = PLOT_CONFIG$box_alpha,
+      linewidth = PLOT_CONFIG$box_linewidth,
+      width = 0.8,
+      outlier.size = PLOT_CONFIG$box_outlier_size,
+      color = PLOT_CONFIG$box_color
+    ) +
+    scale_fill_manual(values = TYPE_COLORS) +
+    labs(x = "", y = expression(H[RETSI])) +
+    geom_signif(
+      comparisons = list(c("Tissue-specific", "Ubiquitous")),
+      y_position = max(df$RETSI_entropy, na.rm = TRUE) * 1.05,
+      map_signif_level = TRUE,
+      textsize = 3,
+      tip_length = 0.03
+    ) +
+    facet_grid(~annotation) +
+    ylim(c(0, 1.1)) +
+    THEME +
+    theme(axis.text.x = element_text(
+      angle = PLOT_CONFIG$x_text_angle,
+      hjust = 1,
+      vjust = 1
+    ))
+}
+
+
+```
+
+# Top genes by SPICEY measures across cell types
+
+```{r spicey-heatmap, message=FALSE, warning=FALSE}
+
+SPICEY_HEATMAP <- {
+  plot <- SPICEY::spicey_heatmap(
+    df = SPICEY_ANNOTATED_COACC$linked, # Because INS and IGF2 are already there!
+    spicey_measure = "SPICEY",
+    combined_score = TRUE,
+    top_n = 3)
+  df_plot <- plot$data
+  plot +
+    THEME +
+    theme(axis.text.y = ggtext::element_markdown(),
+          axis.text.x = element_text(angle = PLOT_CONFIG$x_text_angle, 
+                                     hjust = 1, vjust = 1))
+}
+
+```
+
+# Main figure (Figure 1)
+
+```{r figure-1-old, eval=FALSE, fig.align='center', fig.height=9.5, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
+
+# Distribution plot (A) - add tiny top margin to align label with B/D/E
+dist_row <- ggdraw(
+  DISTRIBUTION_PLOT +
+    theme(
+      legend.position = "none",
+      plot.margin = margin(5, 5, 5, 5)  # small top margin added
+    )
+) +
+  draw_label("A", x = 0, y = 1, hjust = 0, size=LABEL_SIZE, vjust = 1, fontface = "bold")
+
+# GETSI markers (B) | GETSI entropy (C)
+middle_row <- plot_grid(
+  SPICEY_GETSI + theme(legend.position = "none") + ggtitle(NULL),
+  SPICEY_GETSI_ENTROPY + theme(legend.position = "none") + ggtitle(NULL) + ylab(expression(H[GETSI])),
+  labels = c("B", "C"),
+  ncol = 2,
+  align = "h",
+  rel_widths = c(1, 1),
+  label_fontface = "bold", 
+  label_size=LABEL_SIZE)
+
+# RETSI markers (D) | RETSI entropy (E)
+bottom_row <- plot_grid(
+  SPICEY_RETSI + theme(legend.position = "none") + ggtitle(NULL),
+  SPICEY_RETSI_ENTROPY + theme(legend.position = "none") + ggtitle(NULL) + ylab(expression(H[RETSI])),
+  labels = c("D", "E"),
+  ncol = 2,
+  align = "h",
+  rel_widths = c(1, 1),
+  label_fontface = "bold", 
+  label_size=LABEL_SIZE
+
+)
+
+# Left panel
+left_panel <- plot_grid(
+  # dist_row,
+  middle_row,
+  bottom_row,
+  ncol = 1,
+  rel_heights = c(1.05, 1.105, 1.25),
+  align = "vh"
+)
+
+# Heatmap (F)
+SPICEY_HEATMAP.labeled <- ggdraw(
+  SPICEY_HEATMAP +
+    scale_y_discrete(labels = function(x) sprintf("<i>%s</i>", x)) +
+    theme(
+      axis.text.y = ggtext::element_markdown(),
+      axis.text.x = element_text(angle = PLOT_CONFIG$x_text_angle, hjust = 1, vjust = 1)
+    ) +
+    ggtitle(NULL)
+) + draw_label("F", x = 0, y = 1, hjust = 0, vjust = 1, fontface = "bold", size=LABEL_SIZE)
+
+# Final layout
+final_layout <- plot_grid(
+  left_panel,
+  SPICEY_HEATMAP.labeled,
+  ncol = 2,
+  rel_widths = c(1.1, 1.2)
+)
+
+# Save figure with BMC Bioinformatics sizing
+ggsave(
+  filename = "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/FIGURE1.png",
+  plot = final_layout,
+  width = 17,   # full page width in cm
+  height = 14.65, #* (26 / 29),  # keep original aspect ratio
+  units = "cm",
+  dpi = 300,
+  bg = "white"
+)
+
+
+```
+
+```{r figure-1, eval=FALSE, fig.align='center', fig.height=9.5, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
+
+uniform_theme1 <- theme(plot.margin = margin(t=5,b=-9,l=8,r=2))
+SPICEY_GETSI <- SPICEY_GETSI + uniform_theme1
+SPICEY_GETSI_ENTROPY <- SPICEY_GETSI_ENTROPY + uniform_theme1
+
+uniform_theme2 <- theme(plot.margin = margin(t=-5,b=-12,l=3,r=2))
+SPICEY_RETSI <- SPICEY_RETSI + uniform_theme2
+SPICEY_RETSI_ENTROPY <- SPICEY_RETSI_ENTROPY + uniform_theme2
+
+
+# --- Panel A ---
+dist_row <- plot_grid(
+  DISTRIBUTION_PLOT + 
+    theme(
+      legend.position = "none",
+      plot.margin = margin(t=5, b=5, l=2, r=2)
+    ),
+  labels = "A",
+  label_fontface = "bold", label_size=LABEL_SIZE
+)
+
+# --- Panels B & C ---
+middle_row <- plot_grid(
+  SPICEY_GETSI + theme(legend.position = "none") + ggtitle(NULL),
+  SPICEY_GETSI_ENTROPY + theme(legend.position = "none") + ggtitle(NULL) + 
+    ylab(expression(H[GETSI])),
+  labels = c("B", "C"),
+  ncol = 2,
+  align = "h",
+  rel_widths = c(1, 1),
+  label_size=LABEL_SIZE,
+  label_fontface = "bold",
+  label_y = 1.015   # ← lift label position slightly upward
+)
+
+# --- Panels D & E ---
+bottom_row <- plot_grid(
+  SPICEY_RETSI + theme(legend.position = "none") + ggtitle(NULL),
+  SPICEY_RETSI_ENTROPY + theme(legend.position = "none") + ggtitle(NULL) + 
+    ylab(expression(H[RETSI])),
+  labels = c("D", "E"),
+  ncol = 2,
+  label_size=LABEL_SIZE,
+  align = "h",
+  rel_widths = c(1, 1),
+  label_fontface = "bold",
+  label_y = 1.075   # ← same here for consistent alignment
+)
+
+# --- Stack A–E vertically ---
+left_panel <- plot_grid(
+  dist_row,
+  middle_row,
+  bottom_row,
+  ncol = 1,
+  rel_heights = c(1, 1, 1),   # equal heights
+  align = "v"
+)
+
+# --- Panel F ---
+SPICEY_HEATMAP.labeled <- plot_grid(
+  SPICEY_HEATMAP +
+    scale_y_discrete(labels = function(x) sprintf("<i>%s</i>", x)) +
+    theme(
+      axis.text.y = ggtext::element_markdown(),
+      axis.text.x = element_text(
+        angle = PLOT_CONFIG$x_text_angle, 
+        hjust = 1, vjust = 1
+      )
+      # legend.position = "none"
+    ) +
+    ggtitle(NULL),
+  labels = "F",
+  label_size=LABEL_SIZE,
+  label_fontface = "bold"
+)
+
+# --- Final layout (A–F) ---
+final_layout <- plot_grid(
+  left_panel,
+  SPICEY_HEATMAP.labeled,
+  ncol = 2,
+  rel_widths = c(1.1, 1.2),
+  align = "h"
+)
+
+# Save figure with BMC Bioinformatics sizing
+ggsave(
+  filename = "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/FIGURE1.png",
+  plot = final_layout,
+  width = 17,   # full page width in cm
+  height = 14.65, #* (26 / 29),  # keep original aspect ratio
+  units = "cm",
+  dpi = 300,
+  bg = "white"
+)
+
+```

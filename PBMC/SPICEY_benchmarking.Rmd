@@ -1,0 +1,631 @@
+---
+title: "Benchmarking SPICEY"
+author: "Georgina Fuentes"
+date: "2025-12-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+# BiocManager::install("dreamlet")
+library(dreamlet)
+library(Seurat)
+library(SingleCellExperiment)
+library(dplyr)
+library(tidyr)
+
+# PBMS data ----
+# seurat_rna <- readRDS("/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/final_pbmc_rna.rds")
+seurat_rna <- readRDS("/homes/users/gfuentes/scratch/projects/spicey_paper/HPAP_CTRL/_targets/objects/HPAP_SUBSET_CLEAN")
+DefaultAssay(seurat_rna) <- "RNA"
+sce <- as.SingleCellExperiment(seurat_rna)
+colData(sce)$cell_id <- sce@colData@rownames
+# SPICEY <- readRDS("/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/PBMC_SPICEY_COACC.rds")$GETSI
+SPICEY <- readRDS("/homes/users/gfuentes/scratch/projects/spicey_paper/data/HPAP_CTRL_SPICEY_COACC.rds")
+GETSI_spicey <- SPICEY$GETSI
+
+# Markers ----- 
+# UBIQUITOUS <- read.csv(here::here("HPAP_CTRL/data/UBIQUITOUS_GENESET.csv"))$HSIAO_HOUSEKEEPING_GENES
+UBIQUITOUS <- readRDS("/homes/users/gfuentes/scratch/projects/spicey_paper/HPAP_CTRL/_targets/objects/UBIQUITOUS")
+TISSUE_SPECIFIC <- readRDS("/homes/users/gfuentes/scratch/projects/spicey_paper/HPAP_CTRL/_targets/objects/TISSUE_SPECIFIC")
+
+# marker_map <- list(
+# 
+#   "CD14 Mono" = c(
+#     # original
+#     "S100A9","S100A8","LYZ","CTSS","CTSD","FCN1",
+#     "VCAN","CD14","S100A12","MS4A6A","IL1B","AIF1",
+#     # added
+#     "LGALS3","CTSB","CTSL","HLA-DRA","HLA-DRB1","CCR2","CD68"
+#   ),
+# 
+#   "CD16 Mono" = c(
+#     # original
+#     "FCGR3A","LST1","MS4A7","AIF1","CDKN1C",
+#     "FCER1G","COTL1","NAP1L1","YBX1",
+#     # added
+#     "CX3CR1","IFITM3","SERPINA1","LGALS3"
+#   ),
+# 
+#   "CD4 Naive" = c(
+#     # original
+#     "CD4","CCR7","IL7R","TCF7","LEF1",
+#     "LDHB","FHIT","MAL","TRAC",
+#     # added
+#     "LTB","NOSIP","SATB1","CCR6"
+#   ),
+# 
+#   "CD4 TCM" = c(
+#     # original
+#     "CD4","IL7R","LTB","FYB1","ITGB1",
+#     "MAL","AQP3","IL32","TRAC",
+#     # added
+#     "CCR7","CD27","ICOS"
+#   ),
+# 
+#   "CD4 TEM" = c(
+#     # original
+#     "CD4","GZMK","CCL5","IL32","GZMA",
+#     "ITGB1","KLRB1","TRAC",
+#     # added
+#     "IFNG","CXCR3","CD69"
+#   ),
+# 
+#   "CD8 Naive" = c(
+#     # original
+#     "CD8A","CD8B","CCR7","LEF1","TCF7",
+#     "LDHB","S100B",
+#     # added
+#     "MAL","LTB","NOSIP"
+#   ),
+# 
+#   "CD8 TEM_1" = c(
+#     # original
+#     "CD8A","CD8B","CCL5","GZMK",
+#     "NKG7","CST7","IL32",
+#     # added
+#     "IFNG","KLRB1"
+#   ),
+# 
+#   "CD8 TEM_2" = c(
+#     # original
+#     "CD8A","CD8B","GZMH","GNLY",
+#     "KLRD1","PRF1","FGFBP2",
+#     # added
+#     "XCL1","XCL2","CTSW"
+#   ),
+# 
+#   "cDC" = c(
+#     # original
+#     "FCER1A","CD1C","CLEC10A","CD74",
+#     "HLA-DPA1","HLA-DPB1","HLA-DQA1",
+#     "HLA-DQB1","HLA-DRA","CTSS","PLD4",
+#     # added
+#     "IRF4","LILRA4","CCR7"
+#   ),
+# 
+#   "gdT" = c(
+#     # original
+#     "TRDC","TRGC1","TRGC2","TRDV1","TRDV2",
+#     "KLRD1","KLRC1","NKG7","GNLY","IKZF2",
+#     # added
+#     "GZMB","PRF1","CTSW"
+#   ),
+# 
+#   "Intermediate B" = c(
+#     # original
+#     "MS4A1","IGHM","IGHD","CD79A","CD79B",
+#     "BANK1","TNFRSF13B","TNFRSF13C",
+#     # added
+#     "CD37","CD22","HLA-DRA"
+#   ),
+# 
+#   "Memory B" = c(
+#     # original
+#     "MS4A1","CD79A","BANK1","TNFRSF13C",
+#     "COCH","RALGPS2","SSPN","IGHA1","IGHA2",
+#     # added
+#     "CD27","AIM2","CD74"
+#   ),
+# 
+#   "Naive B" = c(
+#     # original
+#     "IGHM","IGHD","TCL1A","CD79A","CD79B",
+#     "IL4R","CXCR4","MS4A1",
+#     # added
+#     "CD22","CD37","HLA-DRA"
+#   ),
+# 
+#   "NK" = c(
+#     # original
+#     "NKG7","GNLY","PRF1","GZMB","GZMH",
+#     "KLRD1","KLRF1","FCER1G","TYROBP","FGFBP2",
+#     # added
+#     "XCL1","XCL2","CTSW","TRBC1"
+#   ),
+# 
+#   "pDC" = c(
+#     # original
+#     "LILRA4","IL3RA","TCF4","IRF7",
+#     "IRF8","PLD4","SERPINF1","CLEC4C",
+#     # added
+#     "GZMB","TPST1"
+#   ),
+# 
+#   "MAIT" = c(
+#     # original
+#     "KLRB1","NKG7","GZMK","IL7R",
+#     "CXCR6","NCR3","CTSW",
+#     # added
+#     "TRAV1-2","SLC4A10","CCR6"
+#   ),
+# 
+#   "Treg" = c(
+#     # original
+#     "FOXP3","IL2RA","CTLA4","TIGIT",
+#     "IKZF2","RTKN2","TRAC","CD4",
+#     # added
+#     "TNFRSF18","IL10","CCR8","ENTPD1"
+#   )
+# )
+# 
+# 
+# 
+# TISSUE_SPECIFIC <- do.call(
+#   rbind,
+#   lapply(names(marker_map), function(ct) {
+#     data.frame(
+#       gene = marker_map[[ct]],
+#       cell_type = ct,
+#       stringsAsFactors = FALSE
+#     )
+#   })
+# )
+
+
+# Plotting config  -----------
+BASE_SIZE <- 8
+LABEL_SIZE <- 9
+
+THEME <- theme_bw(base_size = BASE_SIZE) +
+  theme(axis.text = element_text(size = 8),
+        axis.title = element_text(size = 9),
+        strip.text = element_text(size = 8),
+        plot.title = element_text(size = 9, hjust = 0.5),
+        legend.text = element_text(size = 8),
+        legend.title = element_text(size = 9))
+
+PLOT_CONFIG <- list(x_text_angle = 35,
+                    box_color = "gray30",
+                    box_linewidth = 0.5,
+                    box_alpha = 0.6,
+                    box_outlier_size = 0.3)
+CELL_COLORS <- readRDS("/homes/users/gfuentes/scratch/projects/spicey_paper/HPAP_CTRL/_targets/objects/CELL_COLORS")
+# CELL_COLORS <- c(
+#   # Monocytes
+#   "CD14 Mono"       = "#7E9F66",
+#   "CD16 Mono"       = "#6F8F5C",
+#   "Intermediate B"  = "#5F7F4F",
+#   # B cells
+#   "Naive B"         = "#87abbf",
+#   "Memory B"        = "#6F94AD",
+#   "Plasma"          = "#557C96",
+#   # CD4 T cells
+#   "CD4 Naive"       = "#D37972",
+#   "CD4 TCM"         = "#C46B65",
+#   "CD4 TEM"         = "#B85E58",
+#   "Treg"            = "#E2A09B",
+#   # CD8 T cells
+#   "CD8 Naive"       = "#fcbbb6",
+#   "CD8 TEM_1"       = "#F2A6A0",
+#   "CD8 TEM_2"       = "#E58E88",
+#   # Innate-like T cells
+#   "MAIT"            = "#C6E6FF",
+#   "gdT"             = "#A9CFEF",
+#   # NK
+#   "NK"              = "#B4609B",
+#   # Dendritic cells
+#   "cDC"             = "#008E80",
+#   "pDC"             = "#5FB3A2",
+#   # Stem / progenitor
+#   "HSPC"            = "#c7c7c7"
+# )
+
+
+TYPE_COLORS <- c("Tissue-specific" = "#c08f5f",
+                 "Ubiquitous" = "#007561")
+
+
+```
+
+# DREAMLET
+
+```{r dreamlet-benchmark, fig.width=6, fig.height=5}
+
+# 1. Run tool -----
+# pb <- aggregateToPseudoBulk(sce,
+#   assay = "counts",
+#   cluster_id = "seurat_annotations",
+#   sample_id = "cell_id",
+#   verbose = FALSE)
+pb <- aggregateToPseudoBulk(sce,
+  assay = "counts",
+  cluster_id = "cell_type",
+  sample_id = "cell_id",
+  verbose = FALSE)
+
+df_cts <- cellTypeSpecificity(pb)
+
+GETSI_dreamlet <- df_cts %>%
+  data.frame() %>%
+  tibble::rownames_to_column("gene") %>%
+  pivot_longer(
+    cols = -gene,
+    names_to = "cell_type",
+    values_to = "score"
+  ) %>% 
+  filter(cell_type != "totalCPM") 
+
+GETSI_dreamlet <- GETSI_dreamlet %>% 
+  mutate(cell_type = gsub("\\.", " ", GETSI_dreamlet$cell_type)
+)
+
+
+GETSI_all <- GETSI_spicey %>%
+  inner_join(GETSI_dreamlet, by = c("gene_id"="gene", "cell_type"))
+
+# scores <- scores %>%
+#   summarise(
+#     spearman = cor(GETSI, score, method = "spearman"),
+#     kendall  = cor(GETSI, score, method = "kendall")
+#   )
+
+# 2. Distribution values with TS and UB mean dots -----
+spicey_long <- GETSI_all %>%
+  as.data.frame() %>%
+  pivot_longer(
+    cols = c(GETSI, score),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(!is.na(value))
+
+cell_order <- spicey_long %>%
+  filter(metric == "score") %>%
+  group_by(cell_type) %>%
+  summarise(mean_value = mean(value, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(mean_value)) %>%
+  pull(cell_type)
+
+spicey_long <- spicey_long %>%
+  mutate(cell_type = factor(cell_type, levels = cell_order))
+
+markers <- bind_rows(
+  GETSI_all %>%
+    as.data.frame() %>%
+    # inner_join(TISSUE_SPECIFIC, by = c("gene_id"="gene", "cell_type")) %>%
+    inner_join(TISSUE_SPECIFIC, by = c("gene_id"="Gene", "cell_type"="CellType")) %>%
+    mutate(type = "Tissue-specific"),
+  GETSI_all %>%
+    as.data.frame() %>%
+    filter(gene_id %in% UBIQUITOUS) %>%
+    mutate(type = "Ubiquitous")
+) %>%
+  mutate(
+    type = factor(type, levels = c("Ubiquitous", "Tissue-specific")),
+    GETSI = as.numeric(GETSI),
+    score = as.numeric(score)
+  ) %>%
+  group_by(cell_type, type) %>%
+  summarise(
+    GETSI = mean(GETSI, na.rm = TRUE),
+    score = mean(score, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(cols = c(GETSI, score), names_to = "metric", values_to = "value") %>%
+  # Create combined metric_type for coloring
+  mutate(
+    metric_type = paste(metric, type, sep = "_")
+  )
+
+MARKER_COLORS <- c(
+  "GETSI_Tissue-specific" = "#c08f5f",  # brownish
+  "GETSI_Ubiquitous"      = "#007561",  # greenish
+  
+  "score_Tissue-specific" = "#ffc0ba",  # blue
+  "score_Ubiquitous"      = "#5f8229"   # red
+)
+
+ggplot(spicey_long, aes(x = cell_type, y = value)) +
+  # Boxplot + jitter for score (full distribution)
+  geom_jitter(data = spicey_long %>% filter(metric == "score"),
+              color = "grey80", width = 0.15, size = 0.4, alpha = 0.05) +
+  geom_boxplot(
+    data = spicey_long %>% filter(metric == "score"),
+    aes(fill = cell_type),
+    position = position_dodge(width = 0.7),
+    outlier.shape = NA,
+    linewidth = PLOT_CONFIG$box_linewidth,
+    color = PLOT_CONFIG$box_color,
+    alpha = PLOT_CONFIG$box_alpha,
+    show.legend = FALSE   # <--- hide boxplot legend
+  ) +
+  # Mean points for markers
+  geom_point(
+    data = markers,
+    aes(x = cell_type, y = value, color = metric_type),
+    size = 3
+  ) +
+  scale_color_manual(values = MARKER_COLORS) +  # keeps marker legend
+  scale_fill_manual(values = CELL_COLORS, guide = "none") +  # hide fill legend just in case
+  labs(x = "Cell type", y = "Specificity / score", color = "Metric × type") +
+  coord_flip() +
+  THEME +
+  theme(
+    axis.text.x = element_text(angle = PLOT_CONFIG$x_text_angle, hjust = 1, vjust = 1)
+  )
+
+
+# 3. GETSI at TS and UB sites ----
+df <- bind_rows(
+  GETSI_all %>%
+    data.frame() %>%
+    inner_join(
+      TISSUE_SPECIFIC,
+      by = c("gene_id" = "Gene", "cell_type"="CellType")
+      # by = c("gene_id" = "gene", "cell_type")
+    ) %>%
+    mutate(type = "Tissue-specific"),
+  
+  GETSI_all %>%
+    data.frame() %>%
+    dplyr::filter(gene_id %in% UBIQUITOUS) %>%
+    mutate(type = "Ubiquitous")
+) %>%
+  dplyr::filter(!is.na(GETSI),
+                !is.na(score), 
+                !is.na(type)) %>%
+  mutate(
+    score = as.numeric(score),
+    type = factor(type, levels = c("Ubiquitous", "Tissue-specific"))
+  ) %>% 
+  pivot_longer(
+    cols = c(GETSI, score),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(!is.na(value))
+
+
+ggplot(df, aes(x = type, y = value, fill = type)) +
+  geom_boxplot(
+    alpha = 0.6,
+    linewidth = PLOT_CONFIG$box_linewidth,
+    width = 0.8,
+    outlier.size = PLOT_CONFIG$box_outlier_size,
+    color = PLOT_CONFIG$box_color
+  ) +
+  scale_fill_manual(values = TYPE_COLORS) +
+  labs(x = "", y = "score") +
+  # ggtitle("score") +
+  THEME +
+  theme(legend.position = "none",
+        axis.text.x = element_text(
+          angle = PLOT_CONFIG$x_text_angle,
+          hjust = 1,
+          vjust = 1
+        )) + 
+  facet_grid(~metric)
+
+```
+
+# deCS
+
+```{r deCS-benchmark, fig.width=6, fig.height=5}
+
+# 1. Run tool -----
+pbmc <- seurat_rna %>%
+  NormalizeData() %>%
+  FindVariableFeatures() %>%
+  ScaleData() %>%
+  RunPCA() 
+pbmc <- FindNeighbors(pbmc, dims = 1:10) 
+pbmc <- FindClusters(pbmc, resolution = 0.5)
+pbmc <- RunUMAP(pbmc, dims = 1:10) 
+Idents(pbmc) <- pbmc$cell_type
+
+pbmc.markers <- FindAllMarkers(pbmc, 
+                               only.pos = TRUE, 
+                               min.pct = 0.25, 
+                               logfc.threshold = 0.25)
+
+all_marker_genes <- pbmc.markers$gene %>% unique()
+# pbmc_cluster_average <- log(AverageExpression(pbmc)[[1]] + 1, 2)
+pbmc_cluster_average <- log2(
+  AverageExpression(
+    pbmc,
+    assays  = "RNA",
+    slot    = "data",
+    group.by = "cell_type"
+  )$RNA + 1
+)
+
+pbmc_cluster_marker_average <- pbmc_cluster_average[rownames(pbmc_cluster_average) %in% all_marker_genes, ]
+pbmc_cluster_marker_z_score <- t(scale(t(as.data.frame(pbmc_cluster_marker_average))))
+
+## long-format
+# GETSI_decs <- pbmc_cluster_marker_z_score %>% 
+#   data.frame() %>% 
+#   mutate(gene = rownames(pbmc_cluster_marker_z_score)) %>% 
+#   pivot_longer(
+#     cols = -gene,
+#     names_to = "cell_type",
+#     values_to = "deCS_score"
+#   )
+
+GETSI_decs <- pbmc_cluster_marker_z_score %>% 
+  as.data.frame() %>% 
+  mutate(gene = rownames(pbmc_cluster_marker_z_score)) %>% 
+  pivot_longer(
+    cols = -gene,
+    names_to = "cell_type",
+    values_to = "zscore"
+  ) %>%
+  group_by(gene) %>%
+  # Softmax transformation per gene
+  mutate(
+    deCS_score = exp(zscore) / sum(exp(zscore), na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  select(gene, cell_type, deCS_score)
+
+
+GETSI_all <- GETSI_spicey %>%
+  inner_join(GETSI_decs, by = c("gene_id"="gene", "cell_type"))
+
+# scores <- GETSI_all %>%
+#   summarise(
+#     spearman = cor(GETSI, deCS_score, method = "spearman"),
+#     kendall  = cor(GETSI, deCS_score, method = "kendall")
+#   )
+
+
+# 2. Distribution values with TS and UB mean dots -----
+spicey_long <- GETSI_all %>%
+  as.data.frame() %>%
+  pivot_longer(
+    cols = c(GETSI, deCS_score),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(!is.na(value))
+
+cell_order <- spicey_long %>%
+  filter(metric == "deCS_score") %>%
+  group_by(cell_type) %>%
+  summarise(mean_value = mean(value, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(mean_value)) %>%
+  pull(cell_type)
+
+spicey_long <- spicey_long %>%
+  mutate(cell_type = factor(cell_type, levels = cell_order))
+
+markers <- bind_rows(
+  GETSI_all %>%
+    as.data.frame() %>%
+    # inner_join(TISSUE_SPECIFIC, by = c("gene_id"="gene", "cell_type")) %>%
+    inner_join(TISSUE_SPECIFIC, by = c("gene_id"="Gene", "cell_type"="CellType")) %>%
+    mutate(type = "Tissue-specific"),
+  GETSI_all %>%
+    as.data.frame() %>%
+    filter(gene_id %in% UBIQUITOUS) %>%
+    mutate(type = "Ubiquitous")
+) %>%
+  mutate(
+    type = factor(type, levels = c("Ubiquitous", "Tissue-specific")),
+    GETSI = as.numeric(GETSI),
+    deCS_score = as.numeric(deCS_score)
+  ) %>%
+  group_by(cell_type, type) %>%
+  summarise(
+    GETSI = mean(GETSI, na.rm = TRUE),
+    deCS_score = mean(deCS_score, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(cols = c(GETSI, deCS_score), names_to = "metric", values_to = "value") %>%
+  # Create combined metric_type for coloring
+  mutate(
+    metric_type = paste(metric, type, sep = "_")
+  )
+
+MARKER_COLORS <- c(
+  "GETSI_Tissue-specific" = "#c08f5f",  # brownish
+  "GETSI_Ubiquitous"      = "#007561",  # greenish
+  
+  "deCS_score_Tissue-specific" = "#ffc0ba",  # blue
+  "deCS_score_Ubiquitous"      = "#5f8229"   # red
+)
+
+ggplot(spicey_long, aes(x = cell_type, y = value)) +
+  # Boxplot + jitter for deCS_score (full distribution)
+  geom_jitter(data = spicey_long %>% filter(metric == "deCS_score"),
+              color = "grey80", width = 0.15, size = 0.4, alpha = 0.05) +
+  geom_boxplot(
+    data = spicey_long %>% filter(metric == "deCS_score"),
+    aes(fill = cell_type),
+    position = position_dodge(width = 0.7),
+    outlier.shape = NA,
+    linewidth = PLOT_CONFIG$box_linewidth,
+    color = PLOT_CONFIG$box_color,
+    alpha = PLOT_CONFIG$box_alpha,
+    show.legend = FALSE   # <--- hide boxplot legend
+  ) +
+  # Mean points for markers
+  geom_point(
+    data = markers,
+    aes(x = cell_type, y = value, color = metric_type),
+    size = 3
+  ) +
+  scale_color_manual(values = MARKER_COLORS) +  # keeps marker legend
+  scale_fill_manual(values = CELL_COLORS, guide = "none") +  # hide fill legend just in case
+  labs(x = "Cell type", y = "Specificity / deCS_score", color = "Metric × type") +
+  coord_flip() +
+  THEME +
+  theme(
+    axis.text.x = element_text(angle = PLOT_CONFIG$x_text_angle, hjust = 1, vjust = 1)
+  )
+
+
+# 3. GETSI at TS and UB sites ----
+df <- bind_rows(
+  GETSI_all %>%
+    data.frame() %>%
+    inner_join(
+      TISSUE_SPECIFIC,
+      # by = c("gene_id" = "gene", "cell_type")
+      by = c("gene_id" = "Gene", "cell_type"="CellType")
+    ) %>%
+    mutate(type = "Tissue-specific"),
+  
+  GETSI_all %>%
+    data.frame() %>%
+    dplyr::filter(gene_id %in% UBIQUITOUS) %>%
+    mutate(type = "Ubiquitous")
+) %>%
+  dplyr::filter(!is.na(GETSI),
+                !is.na(deCS_score), 
+                !is.na(type)) %>%
+  mutate(
+    deCS_score = as.numeric(deCS_score),
+    type = factor(type, levels = c("Ubiquitous", "Tissue-specific"))
+  ) %>% 
+  pivot_longer(
+    cols = c(GETSI, deCS_score),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(!is.na(value))
+
+
+ggplot(df, aes(x = type, y = value, fill = type)) +
+  geom_boxplot(
+    alpha = 0.6,
+    linewidth = PLOT_CONFIG$box_linewidth,
+    width = 0.8,
+    outlier.size = PLOT_CONFIG$box_outlier_size,
+    color = PLOT_CONFIG$box_color
+  ) +
+  scale_fill_manual(values = TYPE_COLORS) +
+  labs(x = "", y = "deCS_score") +
+  THEME +
+  theme(legend.position = "none",
+        axis.text.x = element_text(
+          angle = PLOT_CONFIG$x_text_angle,
+          hjust = 1,
+          vjust = 1
+        )) + 
+  facet_grid(~metric)
+
+```

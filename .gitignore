@@ -6,6 +6,8 @@
 !code/**
 
 !PBMC/
+!PBMC/**/*.R
+!PBMC/**/*.Rmd
 
 !data/
 !data/**/*.rds
