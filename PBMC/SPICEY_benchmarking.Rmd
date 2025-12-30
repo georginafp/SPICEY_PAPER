@@ -22,9 +22,10 @@ seurat_rna <- readRDS("/homes/users/gfuentes/scratch/projects/spicey_paper/HPAP_
 DefaultAssay(seurat_rna) <- "RNA"
 sce <- as.SingleCellExperiment(seurat_rna)
 colData(sce)$cell_id <- sce@colData@rownames
-# SPICEY <- readRDS("/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/PBMC_SPICEY_COACC.rds")$GETSI
+# SPICEY <- readRDS("/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/PBMC_SPICEY_COACC.rds")
 SPICEY <- readRDS("/homes/users/gfuentes/scratch/projects/spicey_paper/data/HPAP_CTRL_SPICEY_COACC.rds")
 GETSI_spicey <- SPICEY$GETSI
+RETSI_spicey <- SPICEY$linked
 
 # Markers ----- 
 # UBIQUITOUS <- read.csv(here::here("HPAP_CTRL/data/UBIQUITOUS_GENESET.csv"))$HSIAO_HOUSEKEEPING_GENES
@@ -627,5 +628,334 @@ ggplot(df, aes(x = type, y = value, fill = type)) +
           vjust = 1
         )) + 
   facet_grid(~metric)
+
+```
+
+# Scanpy.tl.rank_groups
+
+```{r getsi-scanpy, message=FALSE, warning=FALSE}
+# 1. Run tool -----
+library(plyr)
+library(data.table)
+
+# 1. Run tool -----
+dt <- fread("/homes/users/gfuentes/shared_data/projects-data/tfs/scanpy_rank_group/HPAP/RNA_HPAP_SCANPY_rank_genes_groups.tsv")
+dt[, final_score :=
+  (score - min(score, na.rm = TRUE)) /
+  (max(score, na.rm = TRUE) - min(score, na.rm = TRUE))
+]
+
+
+GETSI_scanpy <- dt %>% 
+  data.frame()
+
+GETSI_all <- GETSI_spicey %>%
+  inner_join(GETSI_scanpy, by = c("gene_id"="gene", "cell_type")) %>% 
+  mutate(score = final_score) %>%
+  select(c("gene_id", "cell_type", "GETSI", "GETSI_entropy", "score"))
+
+
+# 2. Distribution values with TS and UB mean dots -----
+spicey_long <- GETSI_all %>%
+  as.data.frame() %>%
+  pivot_longer(
+    cols = c(GETSI, score),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(!is.na(value))
+
+cell_order <- spicey_long %>%
+  dplyr::filter(metric == "score") %>%
+  dplyr::group_by(cell_type) %>%
+  dplyr::summarise(
+    mean_value = mean(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  dplyr::arrange(dplyr::desc(mean_value)) %>%
+  dplyr::pull(cell_type)
+
+spicey_long <- spicey_long %>%
+  mutate(cell_type = factor(cell_type, levels = cell_order))
+
+markers <- bind_rows(
+  GETSI_all %>%
+    as.data.frame() %>%
+    # inner_join(TISSUE_SPECIFIC, by = c("gene_id"="gene", "cell_type")) %>%
+    inner_join(TISSUE_SPECIFIC, by = c("gene_id"="Gene", "cell_type"="CellType")) %>%
+    mutate(type = "Tissue-specific"),
+  GETSI_all %>%
+    as.data.frame() %>%
+    dplyr::filter(gene_id %in% UBIQUITOUS) %>%
+    dplyr::mutate(type = "Ubiquitous")
+) %>%
+  dplyr::mutate(
+    type = factor(type, levels = c("Ubiquitous", "Tissue-specific")),
+    GETSI = as.numeric(GETSI),
+    score = as.numeric(score)
+  ) %>%
+  dplyr::group_by(cell_type, type) %>%
+  dplyr::summarise(
+    GETSI = mean(GETSI, na.rm = TRUE),
+    score = mean(score, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(cols = c(GETSI, score), names_to = "metric", values_to = "value") %>%
+  # Create combined metric_type for coloring
+  dplyr::mutate(
+    metric_type = paste(metric, type, sep = "_")
+  )
+
+MARKER_COLORS <- c(
+  "GETSI_Tissue-specific" = "#c08f5f",  # brownish
+  "GETSI_Ubiquitous"      = "#007561",  # greenish
+  
+  "score_Tissue-specific" = "#ffc0ba",  # blue
+  "score_Ubiquitous"      = "#5f8229"   # red
+)
+
+ggplot(spicey_long, aes(x = cell_type, y = value)) +
+  # Boxplot + jitter for deCS_score (full distribution)
+  geom_jitter(data = spicey_long %>% filter(metric == "deCS_score"),
+              color = "grey80", width = 0.15, size = 0.4, alpha = 0.05) +
+  geom_boxplot(
+    data = spicey_long %>% filter(metric == "deCS_score"),
+    aes(fill = cell_type),
+    position = position_dodge(width = 0.7),
+    outlier.shape = NA,
+    linewidth = PLOT_CONFIG$box_linewidth,
+    color = PLOT_CONFIG$box_color,
+    alpha = PLOT_CONFIG$box_alpha,
+    show.legend = FALSE   # <--- hide boxplot legend
+  ) +
+  # Mean points for markers
+  geom_point(
+    data = markers,
+    aes(x = cell_type, y = value, color = metric_type),
+    size = 3
+  ) +
+  scale_color_manual(values = MARKER_COLORS) +  # keeps marker legend
+  scale_fill_manual(values = CELL_COLORS, guide = "none") +  # hide fill legend just in case
+  labs(x = "Cell type", y = "Specificity / deCS_score", color = "Metric × type") +
+  coord_flip() +
+  THEME +
+  theme(
+    axis.text.x = element_text(angle = PLOT_CONFIG$x_text_angle, hjust = 1, vjust = 1)
+  )
+
+
+# 3. GETSI at TS and UB sites ----
+df <- bind_rows(
+  GETSI_all %>%
+    data.frame() %>%
+    inner_join(
+      TISSUE_SPECIFIC,
+      # by = c("gene_id" = "gene", "cell_type")
+      by = c("gene_id" = "Gene", "cell_type"="CellType")
+    ) %>%
+    mutate(type = "Tissue-specific"),
+  
+  GETSI_all %>%
+    data.frame() %>%
+    dplyr::filter(gene_id %in% UBIQUITOUS) %>%
+    mutate(type = "Ubiquitous")
+) %>%
+  dplyr::filter(!is.na(GETSI),
+                !is.na(score), 
+                !is.na(type)) %>%
+  mutate(
+    score = as.numeric(score),
+    type = factor(type, levels = c("Ubiquitous", "Tissue-specific"))
+  ) %>% 
+  pivot_longer(
+    cols = c(GETSI, score),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(!is.na(value))
+
+
+ggplot(df, aes(x = type, y = value, fill = type)) +
+  geom_boxplot(
+    alpha = 0.6,
+    linewidth = PLOT_CONFIG$box_linewidth,
+    width = 0.8,
+    outlier.size = PLOT_CONFIG$box_outlier_size,
+    color = PLOT_CONFIG$box_color
+  ) +
+  scale_fill_manual(values = TYPE_COLORS) +
+  labs(x = "", y = "score") +
+  THEME +
+  theme(legend.position = "none",
+        axis.text.x = element_text(
+          angle = PLOT_CONFIG$x_text_angle,
+          hjust = 1,
+          vjust = 1
+        )) + 
+  facet_grid(~metric)
+
+```
+
+```{r retsi-scanpy, message=FALSE, warning=FALSE}
+
+# 1. Run tool -----
+library(plyr)
+library(data.table)
+
+# 1. Run tool -----
+dt <- fread("/homes/users/gfuentes/shared_data/projects-data/tfs/scanpy_rank_group/HPAP/ATAC_HPAP_SCANPY_rank_genes_groups.tsv")
+dt[, final_score :=
+  (score - min(score, na.rm = TRUE)) /
+  (max(score, na.rm = TRUE) - min(score, na.rm = TRUE))
+]
+
+RETSI_scanpy <- dt %>% 
+  data.frame()
+
+RETSI_all <- RETSI_spicey %>%
+  inner_join(RETSI_scanpy, by = c("region_id"="gene", "cell_type")) %>% 
+  mutate(score = final_score) %>%
+  select(c("region_id", "cell_type", "RETSI", "RETSI_entropy", "score", "gene_id", "annotation"))
+
+
+# 2. Distribution values with TS and UB mean dots -----
+spicey_long <- RETSI_all %>%
+  as.data.frame() %>%
+  pivot_longer(
+    cols = c(RETSI, score),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(!is.na(value))
+
+cell_order <- spicey_long %>%
+  dplyr::filter(metric == "score") %>%
+  dplyr::group_by(cell_type) %>%
+  dplyr::summarise(
+    mean_value = mean(value, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  dplyr::arrange(dplyr::desc(mean_value)) %>%
+  dplyr::pull(cell_type)
+
+spicey_long <- spicey_long %>%
+  mutate(cell_type = factor(cell_type, levels = cell_order))
+
+markers <- bind_rows(
+  RETSI_all %>%
+    as.data.frame() %>%
+    # inner_join(TISSUE_SPECIFIC, by = c("gene_id"="gene", "cell_type")) %>%
+    inner_join(TISSUE_SPECIFIC, by = c("gene_id"="Gene", "cell_type"="CellType")) %>%
+    mutate(type = "Tissue-specific"),
+  RETSI_all %>%
+    as.data.frame() %>%
+    dplyr::filter(gene_id %in% UBIQUITOUS) %>%
+    dplyr::mutate(type = "Ubiquitous")
+) %>%
+  dplyr::mutate(
+    type = factor(type, levels = c("Ubiquitous", "Tissue-specific")),
+    RETSI = as.numeric(RETSI),
+    score = as.numeric(score)
+  ) %>%
+  dplyr::group_by(cell_type, type, annotation) %>%
+  dplyr::summarise(
+    RETSI = mean(RETSI, na.rm = TRUE),
+    score = mean(score, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(cols = c(RETSI, score), names_to = "metric", values_to = "value") %>%
+  # Create combined metric_type for coloring
+  dplyr::mutate(
+    metric_type = paste(metric, type, sep = "_")
+  )
+
+MARKER_COLORS <- c(
+  "RETSI_Tissue-specific" = "#c08f5f",  # brownish
+  "RETSI_Ubiquitous"      = "#007561",  # greenish
+  
+  "score_Tissue-specific" = "#ffc0ba",  # blue
+  "score_Ubiquitous"      = "#5f8229"   # red
+)
+
+ggplot(spicey_long, aes(x = cell_type, y = value)) +
+  # Boxplot + jitter for deCS_score (full distribution)
+  geom_jitter(data = spicey_long %>% filter(metric == "deCS_score"),
+              color = "grey80", width = 0.15, size = 0.4, alpha = 0.05) +
+  geom_boxplot(
+    data = spicey_long %>% filter(metric == "deCS_score"),
+    aes(fill = cell_type),
+    position = position_dodge(width = 0.7),
+    outlier.shape = NA,
+    linewidth = PLOT_CONFIG$box_linewidth,
+    color = PLOT_CONFIG$box_color,
+    alpha = PLOT_CONFIG$box_alpha,
+    show.legend = FALSE   # <--- hide boxplot legend
+  ) +
+  # Mean points for markers
+  geom_point(
+    data = markers,
+    aes(x = cell_type, y = value, color = metric_type),
+    size = 3
+  ) +
+  scale_color_manual(values = MARKER_COLORS) +  # keeps marker legend
+  scale_fill_manual(values = CELL_COLORS, guide = "none") +  # hide fill legend just in case
+  labs(x = "Cell type", y = "Specificity / deCS_score", color = "Metric × type") +
+  coord_flip() +
+  THEME +
+  theme(
+    axis.text.x = element_text(angle = PLOT_CONFIG$x_text_angle, hjust = 1, vjust = 1)
+  ) +
+  facet_grid(~annotation)
+
+
+# 3. RETSI at TS and UB sites ----
+df <- bind_rows(
+  RETSI_all %>%
+    data.frame() %>%
+    inner_join(
+      TISSUE_SPECIFIC,
+      # by = c("gene_id" = "gene", "cell_type")
+      by = c("gene_id" = "Gene", "cell_type"="CellType")
+    ) %>%
+    mutate(type = "Tissue-specific"),
+  
+  RETSI_all %>%
+    data.frame() %>%
+    dplyr::filter(gene_id %in% UBIQUITOUS) %>%
+    mutate(type = "Ubiquitous")
+) %>%
+  dplyr::filter(!is.na(RETSI),
+                !is.na(score), 
+                !is.na(type)) %>%
+  mutate(
+    score = as.numeric(score),
+    type = factor(type, levels = c("Ubiquitous", "Tissue-specific"))
+  ) %>% 
+  pivot_longer(
+    cols = c(RETSI, score),
+    names_to = "metric",
+    values_to = "value"
+  ) %>%
+  filter(!is.na(value))
+
+
+ggplot(df, aes(x = type, y = value, fill = type)) +
+  geom_boxplot(
+    alpha = 0.6,
+    linewidth = PLOT_CONFIG$box_linewidth,
+    width = 0.8,
+    outlier.size = PLOT_CONFIG$box_outlier_size,
+    color = PLOT_CONFIG$box_color
+  ) +
+  scale_fill_manual(values = TYPE_COLORS) +
+  labs(x = "", y = "score") +
+  THEME +
+  theme(legend.position = "none",
+        axis.text.x = element_text(
+          angle = PLOT_CONFIG$x_text_angle,
+          hjust = 1,
+          vjust = 1
+        )) + 
+  facet_wrap(annotation ~ metric)
 
 ```
