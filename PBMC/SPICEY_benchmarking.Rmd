@@ -959,3 +959,134 @@ ggplot(df, aes(x = type, y = value, fill = type)) +
   facet_wrap(annotation ~ metric)
 
 ```
+
+```{r extra-benchmark}
+
+# 1 -----
+df_ecdf <- GETSI_all %>%
+  dplyr::mutate(
+    GETSI_rank = rank(-GETSI) / n(),
+    scanpy_rank = rank(-score) / n()
+  ) %>%
+  inner_join(
+    TISSUE_SPECIFIC,
+    by = c("gene_id" = "Gene", "cell_type" = "CellType")
+  ) %>%
+  pivot_longer(
+    cols = c(GETSI_rank, scanpy_rank),
+    names_to = "metric",
+    values_to = "rank"
+  )
+
+
+ggplot(df_ecdf, aes(rank, color = metric)) +
+  stat_ecdf(size = 1.2) +
+  labs(
+    x = "Fraction of ranked list",
+    y = "Fraction of tissue-specific genes recovered",
+    title = "SPICEY enriches tissue-specific genes earlier"
+  ) +
+  theme_classic()
+
+
+```
+
+```{r}
+
+roc_df <- bind_rows(
+  GETSI_all %>%
+    inner_join(TISSUE_SPECIFIC,
+               by = c("gene_id" = "Gene", "cell_type" = "CellType")) %>%
+    mutate(label = 1),
+
+  GETSI_all %>%
+    filter(gene_id %in% UBIQUITOUS) %>%
+    mutate(label = 0)
+) %>%
+  filter(!is.na(GETSI), !is.na(score))
+
+
+
+library(pROC)
+roc_spicey <- roc(
+  response = roc_df$label,
+  predictor = roc_df$GETSI,
+  quiet = TRUE
+)
+
+roc_scanpy <- roc(
+  response = roc_df$label,
+  predictor = roc_df$score,
+  quiet = TRUE
+)
+
+
+plot(
+  roc_spicey,
+  col = "#007561",
+  lwd = 3,
+  legacy.axes = TRUE,
+  main = "ROC: Tissue-specific gene prioritization"
+)
+
+plot(
+  roc_scanpy,
+  col = "#ffc0ba",
+  lwd = 3,
+  add = TRUE
+)
+
+abline(a = 0, b = 1, lty = 2, col = "grey70")
+
+legend(
+  "bottomright",
+  legend = c(
+    paste0("SPICEY (GETSI)  AUC = ", round(auc(roc_spicey), 3)),
+    paste0("Scanpy score   AUC = ", round(auc(roc_scanpy), 3))
+  ),
+  col = c("#007561", "#ffc0ba"),
+  lwd = 3,
+  bty = "n"
+)
+
+
+
+
+## 
+library(ggplot2)
+
+roc_by_cell <- roc_df %>%
+  group_by(cell_type) %>%
+  summarise(
+    auc_spicey = auc(roc(label, GETSI, quiet = TRUE)),
+    auc_scanpy = auc(roc(label, score, quiet = TRUE)),
+    .groups = "drop"
+  )
+
+ggplot(roc_by_cell, aes(x = auc_scanpy, y = auc_spicey)) +
+  geom_point(size = 3) +
+  geom_abline(slope = 1, intercept = 0, linetype = 2) +
+  coord_equal() +
+  labs(
+    x = "Scanpy AUC",
+    y = "SPICEY AUC",
+    title = "Per–cell-type ROC AUC comparison"
+  ) +
+  theme_classic()
+
+```
+
+```{r}
+
+pauc_spicey <- auc(roc_spicey, partial.auc = c(1, 0.95), partial.auc.focus = "specificity")
+pauc_scanpy <- auc(roc_scanpy, partial.auc = c(1, 0.95), partial.auc.focus = "specificity")
+
+pauc_spicey
+pauc_scanpy
+
+```
+
+```{r}
+
+```
+

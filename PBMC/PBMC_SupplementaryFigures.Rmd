@@ -359,6 +359,8 @@ DISTRIBUTION_PLOT <- local({
       axis.text.x = element_text(angle = PLOT_CONFIG$x_text_angle, hjust = 1, vjust = 1)
     )
 })
+
+DISTRIBUTION_PLOT
 ```
 
 # SPICEY measures at cell type specific and ubiquitous sites
@@ -453,6 +455,8 @@ SPICEY_RETSI <- {
     ))
 }
 
+SPICEY_GETSI
+SPICEY_RETSI
 ```
 
 # Entropy metrics at tissue specific and ubiquitous sites
@@ -553,8 +557,8 @@ SPICEY_RETSI_ENTROPY <- {
       vjust = 1
     ))
 }
-
-
+SPICEY_GETSI_ENTROPY
+SPICEY_RETSI_ENTROPY
 ```
 
 # Top genes by SPICEY measures across cell types
@@ -574,7 +578,7 @@ SPICEY_HEATMAP <- {
           axis.text.x = element_text(angle = PLOT_CONFIG$x_text_angle, 
                                      hjust = 1, vjust = 1))
 }
-
+SPICEY_HEATMAP
 ```
 
 # Main figure (Figure 1)
@@ -655,7 +659,7 @@ ggsave(
   bg = "white"
 )
 
-
+final_layout
 ```
 
 ```{r figure-1, eval=FALSE, fig.align='center', fig.height=9.5, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
@@ -745,6 +749,7 @@ final_layout <- plot_grid(
   align = "h"
 )
 
+final_layout
 # Save figure with BMC Bioinformatics sizing
 ggsave(
   filename = "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/FIGURE1.png",
