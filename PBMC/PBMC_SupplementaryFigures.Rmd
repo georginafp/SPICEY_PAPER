@@ -72,33 +72,15 @@ PLOT_CONFIG <- list(x_text_angle = 35,
                     box_outlier_size = 0.3)
 
 CELL_COLORS <- c(
-  # Monocytes
-  "CD14 Mono"       = "#7E9F66",
-  "CD16 Mono"       = "#6F8F5C",
-  "Intermediate B"  = "#5F7F4F",
-  # B cells
-  "Naive B"         = "#87abbf",
-  "Memory B"        = "#6F94AD",
-  "Plasma"          = "#557C96",
-  # CD4 T cells
-  "CD4 Naive"       = "#D37972",
-  "CD4 TCM"         = "#C46B65",
-  "CD4 TEM"         = "#B85E58",
-  "Treg"            = "#E2A09B",
-  # CD8 T cells
-  "CD8 Naive"       = "#fcbbb6",
-  "CD8 TEM_1"       = "#F2A6A0",
-  "CD8 TEM_2"       = "#E58E88",
-  # Innate-like T cells
-  "MAIT"            = "#C6E6FF",
-  "gdT"             = "#A9CFEF",
-  # NK
-  "NK"              = "#B4609B",
-  # Dendritic cells
-  "cDC"             = "#008E80",
-  "pDC"             = "#5FB3A2",
-  # Stem / progenitor
-  "HSPC"            = "#c7c7c7"
+c(
+  "Mono"      = "#7E9F66",   
+  "B"         = "#87abbf",  
+  "CD4 T"     = "#D37972",   
+  "CD8 T"     = "#fcbbb6",   
+  "other T"   = "#C6E6FF",   
+  "NK"        = "#B4609B",   
+  "DC"        = "#008E80"    
+)
 )
 
 
@@ -114,145 +96,200 @@ UBIQUITOUS <- read.csv(here::here("HPAP_CTRL/data/UBIQUITOUS_GENESET.csv"))$HSIA
 
 # TISSUE_SPECIFIC <- read.csv(here::here("HPAP_CTRL/data/TISSUE_SPZ_GENESET.csv")) %>%
 #   dplyr::filter(CellType %in% unique(SPICEY_ANNOTATED_COACC$linked$cell_type))
+# marker_map <- list(
+# 
+#   "CD14 Mono" = c(
+#     # original
+#     "S100A9","S100A8","LYZ","CTSS","CTSD","FCN1",
+#     "VCAN","CD14","S100A12","MS4A6A","IL1B","AIF1",
+#     # added
+#     "LGALS3","CTSB","CTSL","HLA-DRA","HLA-DRB1","CCR2","CD68"
+#   ),
+# 
+#   "CD16 Mono" = c(
+#     # original
+#     "FCGR3A","LST1","MS4A7","AIF1","CDKN1C",
+#     "FCER1G","COTL1","NAP1L1","YBX1",
+#     # added
+#     "CX3CR1","IFITM3","SERPINA1","LGALS3"
+#   ),
+# 
+#   "CD4 Naive" = c(
+#     # original
+#     "CD4","CCR7","IL7R","TCF7","LEF1",
+#     "LDHB","FHIT","MAL","TRAC",
+#     # added
+#     "LTB","NOSIP","SATB1","CCR6"
+#   ),
+# 
+#   "CD4 TCM" = c(
+#     # original
+#     "CD4","IL7R","LTB","FYB1","ITGB1",
+#     "MAL","AQP3","IL32","TRAC",
+#     # added
+#     "CCR7","CD27","ICOS"
+#   ),
+# 
+#   "CD4 TEM" = c(
+#     # original
+#     "CD4","GZMK","CCL5","IL32","GZMA",
+#     "ITGB1","KLRB1","TRAC",
+#     # added
+#     "IFNG","CXCR3","CD69"
+#   ),
+# 
+#   "CD8 Naive" = c(
+#     # original
+#     "CD8A","CD8B","CCR7","LEF1","TCF7",
+#     "LDHB","S100B",
+#     # added
+#     "MAL","LTB","NOSIP"
+#   ),
+# 
+#   "CD8 TEM_1" = c(
+#     # original
+#     "CD8A","CD8B","CCL5","GZMK",
+#     "NKG7","CST7","IL32",
+#     # added
+#     "IFNG","KLRB1"
+#   ),
+# 
+#   "CD8 TEM_2" = c(
+#     # original
+#     "CD8A","CD8B","GZMH","GNLY",
+#     "KLRD1","PRF1","FGFBP2",
+#     # added
+#     "XCL1","XCL2","CTSW"
+#   ),
+# 
+#   "cDC" = c(
+#     # original
+#     "FCER1A","CD1C","CLEC10A","CD74",
+#     "HLA-DPA1","HLA-DPB1","HLA-DQA1",
+#     "HLA-DQB1","HLA-DRA","CTSS","PLD4",
+#     # added
+#     "IRF4","LILRA4","CCR7"
+#   ),
+# 
+#   "gdT" = c(
+#     # original
+#     "TRDC","TRGC1","TRGC2","TRDV1","TRDV2",
+#     "KLRD1","KLRC1","NKG7","GNLY","IKZF2",
+#     # added
+#     "GZMB","PRF1","CTSW"
+#   ),
+# 
+#   "Intermediate B" = c(
+#     # original
+#     "MS4A1","IGHM","IGHD","CD79A","CD79B",
+#     "BANK1","TNFRSF13B","TNFRSF13C",
+#     # added
+#     "CD37","CD22","HLA-DRA"
+#   ),
+# 
+#   "Memory B" = c(
+#     # original
+#     "MS4A1","CD79A","BANK1","TNFRSF13C",
+#     "COCH","RALGPS2","SSPN","IGHA1","IGHA2",
+#     # added
+#     "CD27","AIM2","CD74"
+#   ),
+# 
+#   "Naive B" = c(
+#     # original
+#     "IGHM","IGHD","TCL1A","CD79A","CD79B",
+#     "IL4R","CXCR4","MS4A1",
+#     # added
+#     "CD22","CD37","HLA-DRA"
+#   ),
+# 
+#   "NK" = c(
+#     # original
+#     "NKG7","GNLY","PRF1","GZMB","GZMH",
+#     "KLRD1","KLRF1","FCER1G","TYROBP","FGFBP2",
+#     # added
+#     "XCL1","XCL2","CTSW","TRBC1"
+#   ),
+# 
+#   "pDC" = c(
+#     # original
+#     "LILRA4","IL3RA","TCF4","IRF7",
+#     "IRF8","PLD4","SERPINF1","CLEC4C",
+#     # added
+#     "GZMB","TPST1"
+#   ),
+# 
+#   "MAIT" = c(
+#     # original
+#     "KLRB1","NKG7","GZMK","IL7R",
+#     "CXCR6","NCR3","CTSW",
+#     # added
+#     "TRAV1-2","SLC4A10","CCR6"
+#   ),
+# 
+#   "Treg" = c(
+#     # original
+#     "FOXP3","IL2RA","CTLA4","TIGIT",
+#     "IKZF2","RTKN2","TRAC","CD4",
+#     # added
+#     "TNFRSF18","IL10","CCR8","ENTPD1"
+#   )
+# )
+
 marker_map <- list(
-
-  "CD14 Mono" = c(
-    # original
-    "S100A9","S100A8","LYZ","CTSS","CTSD","FCN1",
-    "VCAN","CD14","S100A12","MS4A6A","IL1B","AIF1",
-    # added
-    "LGALS3","CTSB","CTSL","HLA-DRA","HLA-DRB1","CCR2","CD68"
+  "Mono" = c(
+    "CTSS", "FCN1", "NEAT1", "LYZ", "PSAP", "S100A9", "AIF1", "MNDA", "SERPINA1", "TYROBP",
+    "S100A8", "CTSD", "VCAN", "S100A12", "MS4A6A", "IL1B", "CD14", "LGALS3", "CTSB", "CTSL",
+    "HLA-DRA", "HLA-DRB1", "CCR2", "CD68", "G0S2", "CDKN1C", "FCGR3A", "PTPRC", "LST1",
+    "IER5", "MS4A7", "RHOC", "IFITM3", "HES4", "PLD4", "CSF1R", "NDST1", "MS4A4E", "MS4A4A"
   ),
 
-  "CD16 Mono" = c(
-    # original
-    "FCGR3A","LST1","MS4A7","AIF1","CDKN1C",
-    "FCER1G","COTL1","NAP1L1","YBX1",
-    # added
-    "CX3CR1","IFITM3","SERPINA1","LGALS3"
+  "CD4 T" = c(
+    "IL7R", "MAL", "LTB", "CD4", "LDHB", "TPT1", "TRAC", "TMSB10", "CD3D", "CD3G",
+    "TCF7", "CCR7", "FHIT", "LEF1", "NOSIP", "PIK3IP1", "GZMH", "FGFBP2", "ITGB1", "GZMA",
+    "CST7", "GNLY", "B2M", "IL32", "MKI67", "TOP2A", "PCLAF", "CENPF", "TYMS", "NUSAP1",
+    "ASPM", "PTTG1", "TPX2", "RRM2", "AQP3", "FYB1", "S100A4", "IFNG-AS1", "CD40LG",
+    "CCR9", "KDF1", "DPP4", "TMIGD2", "ODF2L", "TOB1", "PDE4D", "HOPX", "TMSB4X", "CD28",
+    "CDCA7", "MAF", "ITM2A", "TRAT1", "SARAF"
   ),
 
-  "CD4 Naive" = c(
-    # original
-    "CD4","CCR7","IL7R","TCF7","LEF1",
-    "LDHB","FHIT","MAL","TRAC",
-    # added
-    "LTB","NOSIP","SATB1","CCR6"
-  ),
-
-  "CD4 TCM" = c(
-    # original
-    "CD4","IL7R","LTB","FYB1","ITGB1",
-    "MAL","AQP3","IL32","TRAC",
-    # added
-    "CCR7","CD27","ICOS"
-  ),
-
-  "CD4 TEM" = c(
-    # original
-    "CD4","GZMK","CCL5","IL32","GZMA",
-    "ITGB1","KLRB1","TRAC",
-    # added
-    "IFNG","CXCR3","CD69"
-  ),
-
-  "CD8 Naive" = c(
-    # original
-    "CD8A","CD8B","CCR7","LEF1","TCF7",
-    "LDHB","S100B",
-    # added
-    "MAL","LTB","NOSIP"
-  ),
-
-  "CD8 TEM_1" = c(
-    # original
-    "CD8A","CD8B","CCL5","GZMK",
-    "NKG7","CST7","IL32",
-    # added
-    "IFNG","KLRB1"
-  ),
-
-  "CD8 TEM_2" = c(
-    # original
-    "CD8A","CD8B","GZMH","GNLY",
-    "KLRD1","PRF1","FGFBP2",
-    # added
-    "XCL1","XCL2","CTSW"
-  ),
-
-  "cDC" = c(
-    # original
-    "FCER1A","CD1C","CLEC10A","CD74",
-    "HLA-DPA1","HLA-DPB1","HLA-DQA1",
-    "HLA-DQB1","HLA-DRA","CTSS","PLD4",
-    # added
-    "IRF4","LILRA4","CCR7"
-  ),
-
-  "gdT" = c(
-    # original
-    "TRDC","TRGC1","TRGC2","TRDV1","TRDV2",
-    "KLRD1","KLRC1","NKG7","GNLY","IKZF2",
-    # added
-    "GZMB","PRF1","CTSW"
-  ),
-
-  "Intermediate B" = c(
-    # original
-    "MS4A1","IGHM","IGHD","CD79A","CD79B",
-    "BANK1","TNFRSF13B","TNFRSF13C",
-    # added
-    "CD37","CD22","HLA-DRA"
-  ),
-
-  "Memory B" = c(
-    # original
-    "MS4A1","CD79A","BANK1","TNFRSF13C",
-    "COCH","RALGPS2","SSPN","IGHA1","IGHA2",
-    # added
-    "CD27","AIM2","CD74"
-  ),
-
-  "Naive B" = c(
-    # original
-    "IGHM","IGHD","TCL1A","CD79A","CD79B",
-    "IL4R","CXCR4","MS4A1",
-    # added
-    "CD22","CD37","HLA-DRA"
+  "CD8 T" = c(
+    "CD8B", "CD8A", "CD3D", "TMSB10", "HCST", "CD3G", "LINC02446", "CTSW", "CD3E", "TRAC",
+    "S100B", "CCR7", "RGS10", "NOSIP", "CRTAM", "OXNAD1", "GZMH", "NKG7", "KLRD1", "GZMK",
+    "CST7", "TRGC2", "MKI67", "TYMS", "PCLAF", "CLSPN", "TK1", "RRM2", "ANXA1", "KRT1",
+    "YBX3", "IL7R", "NELL2", "DUSP2", "HOPX", "THEMIS", "CMC1", "ZNF683", "KLRC2", "IFNG-AS1"
   ),
 
   "NK" = c(
-    # original
-    "NKG7","GNLY","PRF1","GZMB","GZMH",
-    "KLRD1","KLRF1","FCER1G","TYROBP","FGFBP2",
-    # added
-    "XCL1","XCL2","CTSW","TRBC1"
+    "NKG7", "KLRD1", "TYROBP", "GNLY", "FCER1G", "PRF1", "CD247", "KLRF1", "CST7", "GZMB",
+    "TRDC", "FGFBP2", "SPON2", "MKI67", "TYMS", "TOP2A", "PCLAF", "ASPM", "XCL2", "SPINK2",
+    "KLRC1", "XCL1", "SPTSSB", "PPP1R9A", "NCAM1", "TNFRSF11A", "STMN1", "SELL", "GPR183",
+    "IL2RB", "CD44"
   ),
 
-  "pDC" = c(
-    # original
-    "LILRA4","IL3RA","TCF4","IRF7",
-    "IRF8","PLD4","SERPINF1","CLEC4C",
-    # added
-    "GZMB","TPST1"
+  "B" = c(
+    "CD79A", "RALGPS2", "CD79B", "MS4A1", "BANK1", "CD74", "TNFRSF13C", "HLA-DQA1", "IGHM",
+    "MEF2C", "TNFRSF13B", "IGHD", "AIM2", "LINC01857", "SSPN", "IGHA1", "IGHA2", "CD27",
+    "TCL1A", "IL4R", "CXCR4", "BTG1", "YBX3", "MZB1", "TNFRSF17", "DERL3", "TXNDC5",
+    "POU2AF1", "CPNE5", "HRASLS2", "NT5DC2", "IGKC", "IGLC2", "IGLC3", "CD22", "FCRL2",
+    "MARCKS", "CD24", "BLK", "LINC01781", "LINC00926", "IGHG3"
   ),
 
-  "MAIT" = c(
-    # original
-    "KLRB1","NKG7","GZMK","IL7R",
-    "CXCR6","NCR3","CTSW",
-    # added
-    "TRAV1-2","SLC4A10","CCR6"
+  "other T" = c(
+    "CD3D", "TRDC", "GZMK", "KLRB1", "NKG7", "TRGC2", "CST7", "LYAR", "KLRG1", "GZMA",
+    "TRGC1", "TRDV2", "CD7", "TRGV9"
   ),
 
-  "Treg" = c(
-    # original
-    "FOXP3","IL2RA","CTLA4","TIGIT",
-    "IKZF2","RTKN2","TRAC","CD4",
-    # added
-    "TNFRSF18","IL10","CCR8","ENTPD1"
+  "DC" = c(
+    "CD74", "HLA-DPA1", "HLA-DPB1", "HLA-DQA1", "CCDC88A", "HLA-DRA", "HLA-DMA", "CST3",
+    "HLA-DQB1", "HLA-DRB1", "PPP1R14A", "LILRA4", "AXL", "IL3RA", "SCT", "SCN9A", "LGMN",
+    "DNASE1L3", "CLEC4C", "GAS6", "CLEC9A", "C1orf54", "IDO1", "CLNK", "CADM1", "FLT3",
+    "ENPP1", "XCR1", "FCER1A", "CLEC10A", "ENHO", "PLD4", "GSN", "SLC38A1", "AFF3",
+    "ITM2C", "TPM2", "SPIB", "IRF4", "SMPD3", "EPHB1", "PROC", "LRRC26", "LTK"
   )
 )
+
+
 
 
 
@@ -464,23 +501,25 @@ SPICEY_RETSI
 ```{r spicey-hallmarks-entropy, message=FALSE, warning=FALSE}
 
 SPICEY_GETSI_ENTROPY <- {
-  df <- SPICEY_ANNOTATED_COACC$linked %>%
-    data.frame() %>%
-    group_by(TSS_gene) %>%
-    filter(any(GETSI > 0, na.rm = TRUE)) %>%   # <-- remove genes with GETSI = 0 everywhere
-    ungroup() %>%
+ df <- bind_rows(
+    SPICEY_ANNOTATED_COACC$linked %>%
+      data.frame() %>%
+      inner_join(
+        TISSUE_SPECIFIC,
+        by = c("gene_id" = "gene", "cell_type")
+      ) %>%
+      mutate(type = "Tissue-specific"),
+
+    SPICEY_ANNOTATED_COACC$linked %>%
+      data.frame() %>%
+      dplyr::filter(gene_id %in% UBIQUITOUS) %>%
+      mutate(type = "Ubiquitous")
+  ) %>%
+    dplyr::filter(!is.na(GETSI), !is.na(type)) %>%
     mutate(
-      type = ifelse(
-        TSS_gene %in% TISSUE_SPECIFIC$gene,
-        "Tissue-specific",
-        "Ubiquitous"
-      ),
-      GETSI_entropy = as.numeric(GETSI_entropy),
+      GETSI = as.numeric(GETSI),
       type = factor(type, levels = c("Ubiquitous", "Tissue-specific"))
-    ) %>%
-    dplyr::filter(!is.na(GETSI_entropy), 
-                  in_TSS == TRUE) #%>% 
-    #dplyr::distinct(TSS_gene, .keep_all = TRUE)
+    )
 
   ggplot(df, aes(x = type, y = GETSI_entropy, fill = type)) +
     geom_violin(alpha = 0.5) +
@@ -512,23 +551,34 @@ SPICEY_GETSI_ENTROPY <- {
 
 
 SPICEY_RETSI_ENTROPY <- {
-  df <- SPICEY_ANNOTATED_COACC$linked %>%
-    data.frame() %>%
-    group_by(region_id) %>%
-    filter(any(RETSI > 0, na.rm = TRUE)) %>%   # <-- remove genes with GETSI = 0 everywhere
-    ungroup() %>%
-    mutate(
-      type = ifelse(
-        gene_id %in% TISSUE_SPECIFIC$gene,
-        "Tissue-specific",
-        "Ubiquitous"
-      ),
-      RETSI_entropy = as.numeric(RETSI_entropy),
-      annotation = factor(annotation, levels = c("Promoter", "Distal")),
-      type = factor(type, levels = c("Ubiquitous", "Tissue-specific"))
+  df <- bind_rows(
+    SPICEY_ANNOTATED_COACC$linked %>%
+      data.frame() %>%
+      inner_join(
+        TISSUE_SPECIFIC,
+        by = c("gene_id" = "gene", "cell_type")
+      ) %>%
+      mutate(type = "Tissue-specific"),
+
+    SPICEY_ANNOTATED_COACC$linked %>%
+      data.frame() %>%
+      dplyr::filter(gene_id %in% UBIQUITOUS) %>%
+      mutate(type = "Ubiquitous")
+  ) %>%
+    dplyr::filter(!is.na(RETSI), !is.na(type), !is.na(annotation)) %>%
+    dplyr::filter(
+      (annotation == "Promoter" & (
+        (type == "Tissue-specific" & TSS_gene %in% TISSUE_SPECIFIC$gene) |
+        (type == "Ubiquitous" & TSS_gene %in% UBIQUITOUS)
+      )) |
+        annotation == "Distal"
     ) %>%
-    dplyr::filter(!is.na(RETSI_entropy)) #%>%
-    #distinct(region_id, .keep_all = TRUE)
+    mutate(
+      RETSI = as.numeric(RETSI),
+      type = factor(type, levels = c("Ubiquitous", "Tissue-specific")),
+      annotation = factor(annotation, levels = c("Promoter", "Distal"))
+    )
+
 
   ggplot(df, aes(x = type, y = RETSI_entropy, fill = type)) +
     geom_violin(alpha = 0.5) +
@@ -559,6 +609,7 @@ SPICEY_RETSI_ENTROPY <- {
 }
 SPICEY_GETSI_ENTROPY
 SPICEY_RETSI_ENTROPY
+
 ```
 
 # Top genes by SPICEY measures across cell types
@@ -762,3 +813,181 @@ ggsave(
 )
 
 ```
+
+```{r}
+
+## =========================
+## PROMOTER
+## =========================
+
+prom <- bind_rows(
+  # Tissue-specific
+  SPICEY_ANNOTATED_COACC$linked %>%
+    data.frame() %>%
+    inner_join(
+      tissue_specific %>% dplyr::select(-Source),
+      by = c("gene_id" = "Gene", "cell_type" = "CellType")
+    ) %>%
+    mutate(type = "Tissue-specific"),
+  
+  # Ubiquitous
+  SPICEY_ANNOTATED_COACC$linked %>%
+    data.frame() %>%
+    filter(gene_id %in% ubiquitous) %>%
+    mutate(type = "Ubiquitous")
+) %>%
+  mutate(
+    type  = factor(type, levels = c("Ubiquitous", "Tissue-specific")),
+    RETSI = as.numeric(RETSI),
+    GETSI = as.numeric(GETSI)
+  ) %>%
+  filter(!is.na(RETSI), !is.na(GETSI), !is.na(type)) %>%
+  pivot_longer(
+    cols = c(RETSI, GETSI),
+    names_to = "spicey_measure",
+    values_to = "value"
+  ) %>%
+  filter(
+    spicey_measure != "RETSI" |
+      (type == "Tissue-specific" &
+         TSS_gene %in% tissue_specific$Gene &
+         annotation == "Promoter") |
+      (type == "Ubiquitous" &
+         TSS_gene %in% ubiquitous &
+         annotation == "Promoter")
+  ) %>%
+  mutate(color_key = paste(type, spicey_measure, sep = "_")) %>%
+  ggplot(aes(x = value, color = color_key, fill = color_key)) +
+  geom_density(
+    alpha = 0.6,
+    bw = 0.08,
+    n = 2048,
+    trim = TRUE,
+    size = 0.5
+  ) +
+  ggside::geom_xsideboxplot(
+    aes(y = spicey_measure, fill = color_key),
+    orientation = "y",
+    outlier.size = 0.1,
+    outlier.alpha = 0.5
+  ) +
+  ggside::scale_xsidey_discrete() +
+  scale_y_continuous(name = "Density") +
+  scale_color_manual(values = c(
+    "Ubiquitous_RETSI"       = "#656d4a",
+    "Ubiquitous_GETSI"      = "#5e614b",
+    "Tissue-specific_RETSI" = "#b37a56",
+    "Tissue-specific_GETSI" = "#8c5e3c"
+  )) +
+  scale_fill_manual(values = c(
+    "Ubiquitous_RETSI"       = "#a4ac86",
+    "Ubiquitous_GETSI"      = "#919b74",
+    "Tissue-specific_RETSI" = "#D2B48C",
+    "Tissue-specific_GETSI" = "#c8a77b"
+  )) +
+  labs(x = "SPICEY measure") +
+  theme_gray() +
+  theme(
+    legend.position = "none",
+    ggside.panel.scale.x = 0.3,
+    axis.title = element_text(size = 10, margin = margin(t = 5)),
+    axis.text = element_text(size = 8, margin = margin(t = 2)),
+    strip.text = element_text(size = 8),
+    axis.text.x = element_text(angle = 30),
+    plot.title = element_text(size = 12)
+  ) +
+  facet_grid(~ type, scales = "free_y") +
+  ggtitle("Promoter")
+
+
+## =========================
+## DISTAL
+## =========================
+
+enh <- bind_rows(
+  SPICEY_ANNOTATED_COACC$linked %>%
+    data.frame() %>%
+    inner_join(
+      tissue_specific %>% dplyr::select(-Source),
+      by = c("gene_id" = "Gene", "cell_type" = "CellType")
+    ) %>%
+    mutate(type = "Tissue-specific") %>%
+    filter(gene_id %in% tissue_specific$Gene),
+  
+  SPICEY_ANNOTATED_COACC$linked %>%
+    data.frame() %>%
+    filter(gene_id %in% ubiquitous) %>%
+    mutate(type = "Ubiquitous")
+) %>%
+  mutate(
+    type  = factor(type, levels = c("Ubiquitous", "Tissue-specific")),
+    RETSI = as.numeric(RETSI),
+    GETSI = as.numeric(GETSI)
+  ) %>%
+  filter(!is.na(RETSI), !is.na(GETSI), !is.na(type)) %>%
+  pivot_longer(
+    cols = c(RETSI, GETSI),
+    names_to = "spicey_measure",
+    values_to = "value"
+  ) %>%
+  filter(spicey_measure != "RETSI" | annotation == "Distal") %>%
+  mutate(color_key = paste(type, spicey_measure, sep = "_")) %>%
+  ggplot(aes(x = value, color = color_key, fill = color_key)) +
+  geom_density(
+    alpha = 0.6,
+    bw = 0.08,
+    n = 2048,
+    trim = TRUE,
+    size = 0.5
+  ) +
+  ggside::geom_xsideboxplot(
+    aes(y = spicey_measure, fill = color_key),
+    orientation = "y",
+    outlier.size = 0.1,
+    outlier.alpha = 0.5
+  ) +
+  ggside::scale_xsidey_discrete() +
+  scale_y_continuous(name = "Density") +
+  scale_color_manual(values = c(
+    "Ubiquitous_RETSI"       = "#656d4a",
+    "Ubiquitous_GETSI"      = "#5e614b",
+    "Tissue-specific_RETSI" = "#b37a56",
+    "Tissue-specific_GETSI" = "#8c5e3c"
+  )) +
+  scale_fill_manual(values = c(
+    "Ubiquitous_RETSI"       = "#a4ac86",
+    "Ubiquitous_GETSI"      = "#919b74",
+    "Tissue-specific_RETSI" = "#D2B48C",
+    "Tissue-specific_GETSI" = "#c8a77b"
+  )) +
+  labs(x = "SPICEY measure") +
+  theme_gray() +
+  theme(
+    legend.position = "none",
+    ggside.panel.scale.x = 0.3,
+    axis.title = element_text(size = 10, margin = margin(t = 5)),
+    axis.text = element_text(size = 8, margin = margin(t = 2)),
+    strip.text = element_text(size = 8),
+    axis.text.x = element_text(angle = 30),
+    plot.title = element_text(size = 12)
+  ) +
+  facet_grid(~ type, scales = "free_y") +
+  ggtitle("Distal")
+
+
+## =========================
+## FINAL PANEL
+## =========================
+
+final <- cowplot::plot_grid(
+  prom,
+  enh,
+  labels = c("B", "C"),
+  label_size = 12
+)
+
+final
+
+
+```
+

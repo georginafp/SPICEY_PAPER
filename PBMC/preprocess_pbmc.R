@@ -134,3 +134,7 @@ saveRDS(pbmc.rna, "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data
 # DimPlot(coembed, group.by = c("orig.ident", "seurat_annotations"))
 #
 # saveRDS(coembed, "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/final_pbmc_coemb.rds")
+
+
+
+# Collapse similar cell types
