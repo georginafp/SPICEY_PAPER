@@ -291,6 +291,14 @@ marker_map <- list(
 
 
 
+# # Genes to remove from Tissue-specific
+# remove_genes_ts <- c(
+#   "ANXA1","CADM1","CCR7","CD27","CD3D","CD3G","CD4","CD44","CD7","CD74","CMC1",
+#   "CST7","DUSP2","FCER1G","FGFBP2","FYB1","GNLY","GPR183","GZMA","GZMB","GZMH",
+#   "IL7R","KLRD1","LEF1","MARCKS","MS4A4A","MS4A4E","MZB1","NOSIP",
+#   "NUSAP1","PDE4D","PLD4","PTTG1","S100A4","SLC38A1","SPINK2","STMN1","TMIGD2",
+#   "TMSB10","TOB1","TYROBP","YBX3"
+# )
 
 
 TISSUE_SPECIFIC <- do.call(
@@ -302,6 +310,15 @@ TISSUE_SPECIFIC <- do.call(
       stringsAsFactors = FALSE
     )
   })
+)
+# # Remove from Tissue-specific only
+# TISSUE_SPECIFIC_clean <- TISSUE_SPECIFIC %>%
+#   dplyr::filter(!gene %in% remove_genes_ts)
+
+write.csv(
+  TISSUE_SPECIFIC,
+  file = "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/PBMC_TISSUE_SPZ_GENESET.csv",
+  row.names = FALSE
 )
 
 
