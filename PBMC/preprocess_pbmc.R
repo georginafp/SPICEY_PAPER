@@ -13,8 +13,8 @@ library(SeuratData)
 # InstallData("pbmcMultiome")
 
 # 0. Load in data and process each modality individually -----
-pbmc.rna <- LoadData("pbmcMultiome", "pbmc.rna")
-pbmc.atac <- LoadData("pbmcMultiome", "pbmc.atac")
+pbmc.rna <- SeuratData::LoadData("pbmcMultiome", "pbmc.rna")
+pbmc.atac <- SeuratData::LoadData("pbmcMultiome", "pbmc.atac")
 
 pbmc.rna[["RNA"]] <- as(pbmc.rna[["RNA"]], Class = "Assay5")
 # repeat QC steps performed in the WNN vignette
@@ -29,13 +29,7 @@ pbmc.rna <- RunPCA(pbmc.rna)
 pbmc.rna <- RunUMAP(pbmc.rna, dims = 1:30)
 
 # ATAC analysis add gene annotation information
-# annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)
-
-annotations <- transcripts(
-  EnsDb.Hsapiens.v86,
-  columns = c("tx_id", "tx_name", "gene_id", "gene_name", "gene_biotype")
-)
-mcols(annotations)$type <- "transcript"
+annotations <- GetGRangesFromEnsDb(ensdb = EnsDb.Hsapiens.v86)
 seqlevelsStyle(annotations) <- "UCSC"
 genome(annotations) <- "hg38"
 Annotation(pbmc.atac) <- annotations
@@ -67,7 +61,8 @@ pbmc.atac <- NormalizeData(pbmc.atac)
 pbmc.atac <- ScaleData(pbmc.atac, features = rownames(pbmc.atac))
 
 # Identify anchors
-transfer.anchors <- FindTransferAnchors(reference = pbmc.rna, query = pbmc.atac,
+transfer.anchors <- FindTransferAnchors(reference = pbmc.rna,
+                                        query = pbmc.atac,
                                         features = VariableFeatures(object = pbmc.rna),
                                         reference.assay = "RNA",
                                         query.assay = "ACTIVITY", reduction = "cca")
@@ -112,29 +107,70 @@ saveRDS(pbmc.atac, "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/dat
 saveRDS(pbmc.rna, "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/final_pbmc_rna.rds")
 
 # # 3. Co-embedding scRNA-seq and scATAC-seq datasets ----
-# # note that we restrict the imputation to variable genes from scRNA-seq, but could impute the
-# # full transcriptome if we wanted to
-# genes.use <- VariableFeatures(pbmc.rna)
-# refdata <- GetAssayData(pbmc.rna, assay = "RNA", slot = "data")[genes.use, ]
-#
-# # refdata (input) contains a scRNA-seq expression matrix for the scRNA-seq cells.  imputation
-# # (output) will contain an imputed scRNA-seq matrix for each of the ATAC cells
-# imputation <- TransferData(anchorset = transfer.anchors, refdata = refdata, weight.reduction = pbmc.atac[["lsi"]],
-#                            dims = 2:30)
-# pbmc.atac[["RNA"]] <- imputation
-#
-# coembed <- merge(x = pbmc.rna, y = pbmc.atac)
-#
-# # Finally, we run PCA and UMAP on this combined object, to visualize the co-embedding of both
-# # datasets
-# coembed <- ScaleData(coembed, features = genes.use, do.scale = FALSE)
-# coembed <- RunPCA(coembed, features = genes.use, verbose = FALSE)
-# coembed <- RunUMAP(coembed, dims = 1:30)
-#
-# DimPlot(coembed, group.by = c("orig.ident", "seurat_annotations"))
-#
-# saveRDS(coembed, "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/final_pbmc_coemb.rds")
+# note that we restrict the imputation to variable genes from scRNA-seq, but could impute the
+# full transcriptome if we wanted to
+genes.use <- VariableFeatures(pbmc.rna)
+refdata <- GetAssayData(pbmc.rna, assay = "RNA", layer = "data")[genes.use, ]
+
+# refdata (input) contains a scRNA-seq expression matrix for the scRNA-seq cells.  imputation
+# (output) will contain an imputed scRNA-seq matrix for each of the ATAC cells
+imputation <- TransferData(anchorset = transfer.anchors, refdata = refdata, weight.reduction = pbmc.atac[["lsi"]],
+                           dims = 2:30)
+pbmc.atac[["RNA"]] <- imputation
+
+coembed <- merge(x = pbmc.rna, y = pbmc.atac)
+
+# Finally, we run PCA and UMAP on this combined object, to visualize the co-embedding of both
+# datasets
+coembed <- ScaleData(coembed, features = genes.use, do.scale = FALSE)
+coembed <- RunPCA(coembed, features = genes.use, verbose = FALSE)
+coembed <- RunUMAP(coembed, dims = 1:30)
 
 
+# collapse seurat_annotations names into more simple cell type names
+coembed$cell_type <- as.character(coembed$seurat_annotations)
+collapse_map <- c(
+  "CD14 Mono" = "Mono",
+  "CD16 Mono" = "Mono",
+  "CD4 Naive" = "CD4 T",
+  "CD4 TCM"   = "CD4 T",
+  "CD4 TEM"   = "CD4 T",
+  "Treg"      = "CD4 T",
+  "CD8 Naive" = "CD8 T",
+  "CD8 TEM_1" = "CD8 T",
+  "CD8 TEM_2" = "CD8 T",
+  "NK"        = "NK",
+  "Naive B"        = "B",
+  "Memory B"       = "B",
+  "Intermediate B" = "B",
+  "gdT"  = "other T",
+  "MAIT" = "other T",
+  "cDC" = "DC",
+  "pDC" = "DC"
+)
 
+coembed$cell_type <- dplyr::recode(coembed$cell_type, !!!collapse_map, .default = NA_character_)
+coembed <- subset(coembed, cells = which(!is.na(coembed$cell_type))) # remove NAs
+Idents(coembed) <- coembed$cell_type
+# DimPlot(coembed, group.by = "seurat_annotations")
+saveRDS(coembed, "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/final_pbmc_coemb.rds")
+
+
+coembed2 <- FindMultiModalNeighbors(
+  object = coembed,
+  reduction.list = list("pca", "lsi"),
+  dims.list = list(1:50, 2:40),
+  modality.weight.name = "RNA.weight",
+  verbose = TRUE
+)
+
+# build a joint UMAP visualization
+coembed <- RunUMAP(
+  object = coembed,
+  nn.name = "weighted.nn",
+  assay = "RNA",
+  verbose = TRUE
+)
+
+DimPlot(coembed, label = TRUE, repel = TRUE, reduction = "umap") + NoLegend()
 # Collapse similar cell types

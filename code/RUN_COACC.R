@@ -44,3 +44,9 @@ genome.df <- data.frame("chr" = names(genome), "length" = genome) # to dataframe
 # 3. Run cicero ----------------------------------------------------------------
 conns <- run_cicero(cds.cicero, genomic_coords = genome.df, sample_num = 100)
 saveRDS(conns, "/homes/users/gfuentes/scratch/projects/spicey_paper/HPAP_CTRL/data/CTRL_LINKS_2.rds")
+
+
+ccans <- generate_ccans(conns)
+links <- ConnectionsToLinks(conns = conns, ccans = ccans)
+Links(so[["ATAC"]]) <- links
+saveRDS(so, "/homes/users/gfuentes/scratch/projects/spicey_paper/HPAP_CTRL/data/HPAP_SUBSET_CLEAN_LINKS_TH0.8.rds")

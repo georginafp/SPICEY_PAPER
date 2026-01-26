@@ -71,7 +71,7 @@ findmarkers_atac <- function(ct, seurat_obj) {
   # Run FindMarkers (LR test)
   res <- FindMarkers(
     object = seurat_obj,
-    test.use = "LR",
+    test.use = "t",
     ident.1 = ct,
     logfc.threshold = 0,
     min.pct = 0.01
@@ -97,7 +97,7 @@ gr_list_atac <- future_lapply(valid_cell_types, findmarkers_atac, seurat_obj = r
 gr_list_atac <- gr_list_atac[!sapply(gr_list_atac, is.null)]
 
 # Save results
-saveRDS(gr_list_atac, "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/LR_DA_ATAC_PBMC.rds")
+saveRDS(gr_list_atac, "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/T_DA_ATAC_PBMC.rds")
 
 
 ### -----------------------------
@@ -121,7 +121,7 @@ findmarkers_rna <- function(ct, seurat_obj) {
 
   res <- FindMarkers(
     object = seurat_obj,
-    test.use = "LR",
+    test.use = "t",
     ident.1 = ct,
     logfc.threshold = 0,
     min.pct = 0.01
@@ -143,4 +143,4 @@ gr_list_rna <- gr_list_rna[!sapply(gr_list_rna, is.null)]
 names(gr_list_rna) <- valid_cell_types
 
 # Save results
-saveRDS(gr_list_rna, "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/LR_DA_RNA_PBMC.rds")
+saveRDS(gr_list_rna, "/homes/users/gfuentes/scratch/projects/spicey_paper/PBMC/data/T_DA_RNA_PBMC.rds")

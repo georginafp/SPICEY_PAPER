@@ -4,7 +4,7 @@
 
 
 # 0. Packages ------------------------------------------------------------------
-.libPaths("/scratch/lab_lpasquali/shared_data/rstudio-singularity/packages/4.4.2")
+.libPaths("/scratch/lab_lpasquali/shared_data/rstudio-singularity/packages/4.5")
 # install.packages("Seurat")
 # install.packages("Signac")
 
@@ -32,7 +32,7 @@ DefaultAssay(so) <- "ATAC"
 
 # 2. Data format ---------------------------------------------------------------
 ## To Monocle3
-cds <- SeuratWrappers::as.cell_data_set(x = so)
+cds <- suppressWarnings(SeuratWrappers::as.cell_data_set(x = so))
 ## To cicero CDS
 cds.cicero <- make_cicero_cds(cds, reduced_coordinates = reducedDims(cds)$UMAP.ATAC)
 
